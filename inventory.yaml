@@ -1,0 +1,5 @@
+targets:
+  - host: 147.93.103.239
+    port: 22
+    user: ubuntu
+    key_path: /home/keerthan/.ssh/id_rsa 

@@ -1,45 +1,76 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
 	"strings"
+	"sync"
+	_"time"
 
 	"github.com/Thundercloud12/gruntdeck/internal/config"
-	
 	"github.com/Thundercloud12/gruntdeck/internal/ssh"
 )
 
-func main(){
+type FinalStatus struct {
+	Target config.Target
+	Err    error
+}
+
+func main() {
 	cfg, err := config.Load("inventory.yaml")
 	if err != nil {
 		log.Fatalf("Error loading inventory: %v", err)
 	}
 
 	if len(os.Args) < 2 {
-		log.Fatalf("Usage: %s <command>\nExample: %s \"uptime\"", os.Args[0], os.Args[0])
+		log.Fatalf("Usage: go run ./cmd/executor <command>")
 	}
 	command := strings.Join(os.Args[1:], " ")
 
-	fmt.Printf("Loaded %d targets. Starting sequential execution...\n", len(cfg.Target))
-	fmt.Printf("Command to execute: %s\n", command)
-	fmt.Println(strings.Repeat("-", 40))
+	fmt.Printf("Starting LIVE CONCURRENT execution on %d targets...\n", len(cfg.Target))
+	fmt.Println(strings.Repeat("=", 60))
 
-	// 3. Loop through targets sequentially
-	for _, target := range cfg.Target {
-		fmt.Printf("➜ Targeting %s@%s:%d...\n", target.User, target.Host, target.Port)
-		
-		output, err := ssh.RunCommand(target, command)
-		if err != nil {
-			fmt.Printf("❌ ERROR: %v\n", err)
-		} else {
-			// Print the successful output
-			fmt.Printf("✅ SUCCESS:\n%s", string(output))
-		}
-		
-		fmt.Println(strings.Repeat("-", 40))
-	}
 	
-	fmt.Println("Execution complete.")
+	ctx := context.Background()
+
+	results := make(chan FinalStatus, len(cfg.Target))
+	var wg sync.WaitGroup
+
+	
+	for _, target := range cfg.Target {
+		wg.Add(1)
+		go func(t config.Target) {
+			defer wg.Done()
+			
+			
+			err := ssh.RunCommand(ctx, t, command)
+			
+			results <- FinalStatus{Target: t, Err: err}
+		}(target)
+	}
+
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	
+	var failed, success int
+	for res := range results {
+		if res.Err != nil {
+			fmt.Printf("❌ [SYSTEM] %s@%s failed: %v\n", res.Target.User, res.Target.Host, res.Err)
+			failed++
+		} else {
+			success++
+		}
+	}
+
+	fmt.Println(strings.Repeat("=", 60))
+	fmt.Printf("Execution Summary: %d Succeeded | %d Failed\n", success, failed)
+	
+	if failed > 0 {
+		os.Exit(1)
+	}
 }

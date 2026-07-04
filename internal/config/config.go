@@ -7,16 +7,18 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+type Config struct{
+	Target []Target `yaml:"targets"`
+}
+
 type Target struct{
 	Host    string `yaml:"host"`
 	Port    int    `yaml:"port"`
 	User    string `yaml:"user"`
 	KeyPath string `yaml:"key_path"`
+	Tags	[]string	`yaml:"tags"`
 }
 
-type Config struct{
-	Target []Target `yaml:"targets"`
-}
 
 func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(path)

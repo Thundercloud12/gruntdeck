@@ -3,3 +3,4 @@ targets:
     port: 22
     user: ubuntu
     key_path: /home/keerthan/.ssh/id_rsa 
+    tags: ["web-server","production","linux"]

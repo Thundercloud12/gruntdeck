@@ -1,13 +1,8 @@
 jobs:
-  - id: check-disk-space
-    name: "System Health Check"
+  - id: health-check
+    name: "System Health Diagnostics"
+    target_filter: ["web-server", "production"]
     steps:
+      - "echo 'Running Diagnostics...'"
       - "df -h"
       - "free -m"
-      - "uptime"
-  
-  - id: system-status
-    name: "check what is the system version"
-    steps:
-      - "lsb_release -a"
-      - "uptime"

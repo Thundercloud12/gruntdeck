@@ -19,12 +19,17 @@ func RunCommand(ctx context.Context, target config.Target, cmd string) error {
 		return fmt.Errorf("failed to load private key: %w", err)
 	}
 
+	hostKeyCallback, err := GetHostKeyCallback()
+	if err != nil {
+		return fmt.Errorf("failed to setup host key verification: %w", err)
+	}
+
 	sshConfig := &ssh.ClientConfig{
 		User: target.User,
 		Auth: []ssh.AuthMethod{
 			authMethod,
 		},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		HostKeyCallback: hostKeyCallback,
 		Timeout:         5 * time.Second,
 	}
 
@@ -36,14 +41,16 @@ func RunCommand(ctx context.Context, target config.Target, cmd string) error {
 	}
 	defer client.Close()
 
-	
+	keepaliveCtx, cancelKeepalive := context.WithCancel(ctx)
+	defer cancelKeepalive()
+
 	go func() {
 		ticker := time.NewTicker(15 * time.Second)
 		defer ticker.Stop()
 
 		for {
 			select {
-			case <-ctx.Done():
+			case <-keepaliveCtx.Done():
 				return
 
 			case <-ticker.C:
@@ -62,7 +69,7 @@ func RunCommand(ctx context.Context, target config.Target, cmd string) error {
 				case <-time.After(10 * time.Second):
 					_ = client.Close()
 					return
-				case <-ctx.Done():
+				case <-keepaliveCtx.Done():
 					return
 				}
 			}

@@ -32,4 +32,6 @@ go.work.sum
 
 # Gruntdeck build output
 dist/
-gruntdeck
+/gruntdeck
+/executor
+.gruntdeck/

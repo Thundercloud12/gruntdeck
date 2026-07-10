@@ -1,6 +1,6 @@
 targets:
-  - host: 147.93.103.239
+  - host: 127.0.0.1
     port: 22
-    user: ubuntu
+    user: keerthan
     key_path: /home/keerthan/.ssh/id_rsa 
     tags: ["web-server","production","linux"]

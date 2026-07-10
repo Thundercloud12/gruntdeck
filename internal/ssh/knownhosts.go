@@ -20,8 +20,7 @@ const (
 	knownHostsFile = "known_hosts"
 )
 
-// GetKnownHostsPath returns the absolute path of the project's known_hosts file,
-// creating both the directory and the empty file if they do not exist.
+
 func GetKnownHostsPath() (string, error) {
 	wd, err := os.Getwd()
 	if err != nil {
@@ -45,8 +44,6 @@ func GetKnownHostsPath() (string, error) {
 	return filePath, nil
 }
 
-// GetHostKeyCallback loads the project known_hosts file and returns a wrapped
-// HostKeyCallback that emits clean, human-readable errors for missing keys or mismatches.
 func GetHostKeyCallback() (ssh.HostKeyCallback, error) {
 	path, err := GetKnownHostsPath()
 	if err != nil {
@@ -77,8 +74,7 @@ func GetHostKeyCallback() (ssh.HostKeyCallback, error) {
 	}, nil
 }
 
-// ScanHostKey connects to the remote host (negotiating key exchange) and returns the public key.
-// It uses a callback trick to abort the connection after the key is received, avoiding authentication.
+
 func ScanHostKey(hostPort string) (ssh.PublicKey, error) {
 	if !strings.Contains(hostPort, ":") {
 		hostPort = hostPort + ":22"
@@ -90,7 +86,7 @@ func ScanHostKey(hostPort string) (ssh.PublicKey, error) {
 		Auth: []ssh.AuthMethod{},
 		HostKeyCallback: func(hostname string, remote net.Addr, key ssh.PublicKey) error {
 			hostKey = key
-			return errors.New("key_captured_abort") // Abort connection
+			return errors.New("key_captured_abort") 
 		},
 		Timeout: 5 * time.Second,
 	}
@@ -107,13 +103,11 @@ func ScanHostKey(hostPort string) (ssh.PublicKey, error) {
 	return hostKey, nil
 }
 
-// FingerprintSHA256 computes the SHA256 base64-encoded fingerprint of an SSH public key.
 func FingerprintSHA256(key ssh.PublicKey) string {
 	h := sha256.Sum256(key.Marshal())
 	return "SHA256:" + base64.RawStdEncoding.EncodeToString(h[:])
 }
 
-// AddHostKey appends a host key in standard OpenSSH known_hosts format to the project's file.
 func AddHostKey(hostPort string, key ssh.PublicKey) error {
 	if !strings.Contains(hostPort, ":") {
 		hostPort = hostPort + ":22"

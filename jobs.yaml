@@ -3,6 +3,22 @@ jobs:
     name: "System Health Diagnostics"
     target_filter: ["web-server", "production"]
     steps:
-      - "echo 'Running Diagnostics...'"
-      - "df -h"
-      - "free -m"
+      - type: command
+        value: "echo 'Running Diagnostics...'"
+      - type: command
+        value: "df -h"
+      - type: command
+        value: "free -m"
+
+  - id: deploy-app
+    name: "Deploy Application Stack"
+    target_filter: ["web-server", "production"]
+    steps:
+      - type: file-copy
+        source_path: "./config_demo.txt"
+        dest_path: "/tmp/gruntdeck_test/config_demo.txt"
+      - type: script
+        source_path: "./script_demo.sh"
+        args: ["hello", "world"]
+      - type: job-ref
+        job_id: "health-check"

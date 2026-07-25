@@ -61,7 +61,7 @@ func main() {
 		wg.Add(1)
 		go func(t config.Target) {
 			defer wg.Done()
-			
+
 			// Execute steps sequentially on this target
 			for i, step := range activeJob.Steps {
 				err := executeStep(ctx, t, step, jobsCfg)

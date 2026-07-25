@@ -20,7 +20,6 @@ const (
 	knownHostsFile = "known_hosts"
 )
 
-
 func GetKnownHostsPath() (string, error) {
 	wd, err := os.Getwd()
 	if err != nil {
@@ -74,7 +73,6 @@ func GetHostKeyCallback() (ssh.HostKeyCallback, error) {
 	}, nil
 }
 
-
 func ScanHostKey(hostPort string) (ssh.PublicKey, error) {
 	if !strings.Contains(hostPort, ":") {
 		hostPort = hostPort + ":22"
@@ -86,7 +84,7 @@ func ScanHostKey(hostPort string) (ssh.PublicKey, error) {
 		Auth: []ssh.AuthMethod{},
 		HostKeyCallback: func(hostname string, remote net.Addr, key ssh.PublicKey) error {
 			hostKey = key
-			return errors.New("key_captured_abort") 
+			return errors.New("key_captured_abort")
 		},
 		Timeout: 5 * time.Second,
 	}

@@ -2,7 +2,6 @@ package orchestrator
 
 import "github.com/Thundercloud12/gruntdeck/internal/config"
 
-
 func MatchTargets(inventory []config.Target, requiredTags []string) []config.Target {
 	if len(requiredTags) == 0 {
 		return inventory
@@ -17,7 +16,6 @@ func MatchTargets(inventory []config.Target, requiredTags []string) []config.Tar
 	return matched
 }
 
-
 func hasAllTags(targetTags, requiredTags []string) bool {
 	tagMap := make(map[string]bool)
 	for _, t := range targetTags {
@@ -25,7 +23,7 @@ func hasAllTags(targetTags, requiredTags []string) bool {
 	}
 	for _, r := range requiredTags {
 		if !tagMap[r] {
-			return false 
+			return false
 		}
 	}
 	return true

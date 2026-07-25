@@ -7,7 +7,7 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-func PublicKeyFile(file string) (ssh.AuthMethod,error) {
+func PublicKeyFile(file string) (ssh.AuthMethod, error) {
 
 	buffer, err := os.ReadFile(file)
 	if err != nil {
@@ -20,5 +20,5 @@ func PublicKeyFile(file string) (ssh.AuthMethod,error) {
 	}
 
 	return ssh.PublicKeys(key), nil
-	
+
 }

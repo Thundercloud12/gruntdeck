@@ -39,3 +39,13 @@ type Execution struct {
 	TargetsSucceeded int
 	TargetsFailed    int
 }
+
+type LogEntry struct {
+	ID          string
+	ExecutionID string
+	TargetID    string
+	StepID      string
+	Timestamp   time.Time
+	Level       string
+	Message     string
+}

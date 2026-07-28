@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Thundercloud12/gruntdeck/internal/config"
+	"github.com/Thundercloud12/gruntdeck/internal/migrations"
 	"github.com/Thundercloud12/gruntdeck/internal/models"
 	"github.com/Thundercloud12/gruntdeck/internal/orchestrator"
 	"github.com/Thundercloud12/gruntdeck/internal/repository"
@@ -46,6 +47,10 @@ func main() {
 
 	if dbURL != "" {
 		fmt.Println("🐘 Connecting to PostgreSQL database...")
+		if err := migrations.RunMigrations(dbURL); err != nil {
+			log.Fatalf("Migration failed: %v", err)
+		}
+
 		pool, err := pgxpool.New(ctx, dbURL)
 		if err != nil {
 			log.Fatalf("Failed to connect to Postgres: %v", err)

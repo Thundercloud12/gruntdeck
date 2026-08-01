@@ -1,23 +1,24 @@
 # Gruntdeck
 
-Gruntdeck is a lightweight, clean-room reimplementation of the **Rundeck** execution engine built in Go. It offers a secure, concurrent, and highly performant orchestration engine to execute multi-step automation workflows across remote nodes over SSH, backed by a PostgreSQL database persistence layer.
+Gruntdeck is a lightweight, clean-room reimplementation of the **Rundeck** execution engine built in Go. It offers a secure, concurrent, and highly performant orchestration engine to execute multi-step automation workflows across remote nodes over SSH, powered by a 100% PostgreSQL persistence layer.
 
 ---
 
 ## Architecture Overview
 
-Below is the complete system architecture of Gruntdeck, illustrating the database layer, repository interfaces, execution engine, SSH client pool, and host-key verification mechanisms.
+Below is the complete system architecture of Gruntdeck, illustrating the PostgreSQL database layer, repository interfaces, embedded migration engine, SSH worker pool, and host-key verification mechanisms.
 
 ```mermaid
 flowchart TD
     subgraph CLI ["Gruntdeck CLI & Execution Entry Points"]
         GT["gruntdeck CLI<br/>(trust / scan-host)"]
         EX["executor CLI<br/>(Job Runner)"]
+        ENV[".env Configuration<br/>DATABASE_URL"]
     end
 
-    subgraph Storage ["Persistence Layer (PostgreSQL & YAML Fallback)"]
+    subgraph Storage ["Persistence Layer (PostgreSQL)"]
         PG[(PostgreSQL Database<br/>via pgx/v5)]
-        YML[YAML Files<br/>inventory.yaml / jobs.yaml]
+        MIG["Embedded Go Migrations<br/>(internal/migrations)"]
 
         subgraph Repos ["Repository Interfaces (internal/repository)"]
             IR[InventoryRepository]
@@ -52,11 +53,13 @@ flowchart TD
     end
 
     %% Flow Connections
+    ENV --> EX
+    EX -->|Auto Run Migrations| MIG
+    MIG --> PG
     EX -->|Load Job & Targets| Repos
     GT -->|Manage Host Keys| KH
     
     Repos -->|pgx/v5 Pool| PG
-    Repos -.->|Fallback| YML
 
     EX --> ORCH
     ORCH -->|Match Node Tags| EXEC
@@ -77,17 +80,17 @@ flowchart TD
 
 ## Key Features
 
-### 1. PostgreSQL Persistence Layer (`pgx/v5`)
-* **Repository Pattern (`internal/repository`)**: Abstracted database interfaces (`InventoryRepository`, `JobRepository`, `ExecutionRepository`, `LogRepository`) decoupled from storage backends.
-* **High-Performance Connection Pooling (`pgxpool`)**: Built using `github.com/jackc/pgx/v5/pgxpool` for native PostgreSQL pooling, context timeouts, and direct array mapping (`TEXT[]`).
-* **Execution & Log Tracking**: Persists overall run metrics (`status`, `started_at`, `ended_at`, `targets_total`, `targets_succeeded`, `targets_failed`) and real-time execution log entries (`log_entries`).
-* **YAML Fallback**: Automatically falls back to `inventory.yaml` and `jobs.yaml` if `DATABASE_URL` is unconfigured.
+### 1. 100% PostgreSQL Database Native (`pgx/v5`)
+* **Environment Configuration (`.env`)**: Automatically pulls `DATABASE_URL` from `.env` or system environment variables upon execution.
+* **Embedded Database Migrations**: Uses Go's `embed` package to automatically run schema migrations and initial seed data on application startup.
+* **Repository Pattern (`internal/repository`)**: Abstracted database interfaces (`InventoryRepository`, `JobRepository`, `ExecutionRepository`, `LogRepository`) backed by native PostgreSQL connection pooling (`pgxpool`).
+* **Execution & Log Tracking**: Persists run metrics (`status`, `started_at`, `ended_at`, `targets_total`, `targets_succeeded`, `targets_failed`) and real-time step output log entries (`log_entries`).
 
 ### 2. Advanced Job Step Types
 * **Command (`command`)**: Executes arbitrary shell commands on target nodes.
 * **File Copier (`file-copy`)**: Transfers local configuration files or assets to remote nodes using high-efficiency SSH stdin piping (zero SFTP/rsync dependencies required).
 * **Script Executor (`script`)**: Automatically copies local scripts to a remote temporary directory, grants execution permissions, executes the script with customizable CLI arguments, and guarantees cleanup of the remote script on connection exit.
-* **Job Reference (`job-ref`)**: Calls another job's steps recursively on the current target node.
+* **Job Reference (`job-ref`)**: Calls another job's steps recursively on the current target node from PostgreSQL.
 
 ### 3. Node-First Step-by-Step Orchestration
 * Executes steps sequentially per target node to ensure proper setup pipelines (e.g. file copying -> script setup -> verification).
@@ -110,7 +113,7 @@ flowchart TD
 
 ## Database Schema (PostgreSQL DDL)
 
-To set up PostgreSQL for Gruntdeck, apply the following DDL schema:
+Database schema migrations are embedded into the `executor` binary and automatically applied when running jobs:
 
 ```sql
 -- Target Inventory Table
@@ -169,7 +172,7 @@ CREATE TABLE IF NOT EXISTS log_entries (
 
 ### Prerequisites
 * Go 1.25+
-* PostgreSQL database instance (optional, for DB storage mode)
+* PostgreSQL database instance (local PostgreSQL container or managed service)
 * Target nodes with SSH enabled and authorized public keys configured.
 
 ### Compilation
@@ -181,52 +184,11 @@ go build -o executor ./cmd/executor
 
 ---
 
-## Configuration & Environment
+## Environment Configuration (`.env`)
 
-### PostgreSQL Mode
-Set the `DATABASE_URL` environment variable before running `executor`:
-```bash
-export DATABASE_URL="postgres://postgres:postgres@localhost:5432/gruntdeck?sslmode=disable"
-./executor deploy-app
-```
-
-### File Mode (Fallback)
-If `DATABASE_URL` is omitted, Gruntdeck automatically uses local YAML configuration files:
-
-#### 1. Host Inventory (`inventory.yaml`)
-```yaml
-targets:
-  - host: 127.0.0.1
-    port: 22
-    user: admin
-    key_path: /home/user/.ssh/id_rsa 
-    tags: ["web-server", "production", "linux"]
-```
-
-#### 2. Job Definitions (`jobs.yaml`)
-```yaml
-jobs:
-  - id: health-check
-    name: "System Health Diagnostics"
-    target_filter: ["web-server", "production"]
-    steps:
-      - type: command
-        value: "echo 'Running Diagnostics...'"
-      - type: command
-        value: "df -h"
-
-  - id: deploy-app
-    name: "Deploy Application Stack"
-    target_filter: ["web-server"]
-    steps:
-      - type: file-copy
-        source_path: "./config_demo.txt"
-        dest_path: "/tmp/gruntdeck_test/config_demo.txt"
-      - type: script
-        source_path: "./script_demo.sh"
-        args: ["hello", "world"]
-      - type: job-ref
-        job_id: "health-check"
+Create a `.env` file in your root working directory:
+```env
+DATABASE_URL=postgres://postgres:postgres@localhost:5432/gruntdeck?sslmode=disable
 ```
 
 ---
@@ -256,13 +218,15 @@ Scanning 192.168.1.100...
 ```
 
 ### B. Running Jobs
-Trigger a job by passing its ID to the executor:
+Trigger a job by passing its ID to the executor (it automatically loads `.env`):
 ```bash
 $ ./executor deploy-app
 ```
 
 **Console Output:**
 ```
+🐘 Connecting to PostgreSQL database...
+Database schema is up to date.
 Job: Deploy Application Stack | Matching Nodes: 1
 ============================================================
 [keerthan@127.0.0.1] 📁 Copying local ./config_demo.txt to remote /tmp/gruntdeck_test/config_demo.txt...
@@ -271,9 +235,6 @@ Job: Deploy Application Stack | Matching Nodes: 1
 [keerthan@127.0.0.1] ➜ === Gruntdeck Demo Script ===
 [keerthan@127.0.0.1] ➜ Working directory: /home/keerthan
 [keerthan@127.0.0.1] ➜ Arguments received: hello world
-[keerthan@127.0.0.1] ➜ Reading transferred config file:
-[keerthan@127.0.0.1] ➜ # Gruntdeck Demo Config File
-[keerthan@127.0.0.1] ➜ app_name=gruntdeck_demo
 [keerthan@127.0.0.1] 🔗 Invoking job reference: health-check
 [keerthan@127.0.0.1] ➜ Running Diagnostics...
 [keerthan@127.0.0.1] ➜ Filesystem      Size  Used Avail Use% Mounted on

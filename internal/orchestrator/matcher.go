@@ -1,13 +1,13 @@
 package orchestrator
 
-import "github.com/Thundercloud12/gruntdeck/internal/config"
+import "github.com/Thundercloud12/gruntdeck/internal/models"
 
-func MatchTargets(inventory []config.Target, requiredTags []string) []config.Target {
+func MatchTargets(inventory []models.Target, requiredTags []string) []models.Target {
 	if len(requiredTags) == 0 {
 		return inventory
 	}
 
-	var matched []config.Target
+	var matched []models.Target
 	for _, target := range inventory {
 		if hasAllTags(target.Tags, requiredTags) {
 			matched = append(matched, target)

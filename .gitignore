@@ -29,6 +29,8 @@ go.work.sum
 
 # System Files
 .DS_Store
+.env
+.env.*
 
 # Gruntdeck build output
 dist/

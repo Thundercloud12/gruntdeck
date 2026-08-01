@@ -178,7 +178,7 @@ func (r *PostgresJobRepository) GetJobByID(ctx context.Context, jobID string) (*
 
 	for rows.Next() {
 		var step models.JobStep
-		if err := rows.Scan(&step.ID, &step.JobID, &step.StepOrder, &step.Type, &step.Atrributes); err != nil {
+		if err := rows.Scan(&step.ID, &step.JobID, &step.StepOrder, &step.Type, &step.Attributes); err != nil {
 			return nil, fmt.Errorf("failed to scan job step: %w", err)
 		}
 		job.Steps = append(job.Steps, step)
@@ -222,7 +222,7 @@ func (r *PostgresJobRepository) ListJobs(ctx context.Context) ([]models.Job, err
 
 		for stepRows.Next() {
 			var step models.JobStep
-			if err := stepRows.Scan(&step.ID, &step.JobID, &step.StepOrder, &step.Type, &step.Atrributes); err != nil {
+			if err := stepRows.Scan(&step.ID, &step.JobID, &step.StepOrder, &step.Type, &step.Attributes); err != nil {
 				stepRows.Close()
 				return nil, fmt.Errorf("failed to scan step for job %s: %w", jobs[i].ID, err)
 			}
@@ -255,7 +255,7 @@ func (r *PostgresJobRepository) AddJob(ctx context.Context, job models.Job) erro
 		VALUES ($1, $2, $3, $4, $5)
 	`
 	for _, step := range job.Steps {
-		_, err := tx.Exec(ctx, stepQuery, step.ID, job.ID, step.StepOrder, step.Type, step.Atrributes)
+		_, err := tx.Exec(ctx, stepQuery, step.ID, job.ID, step.StepOrder, step.Type, step.Attributes)
 		if err != nil {
 			return fmt.Errorf("failed to insert job step: %w", err)
 		}
@@ -298,7 +298,7 @@ func (r *PostgresJobRepository) UpdateJob(ctx context.Context, job models.Job) e
 		VALUES ($1, $2, $3, $4, $5)
 	`
 	for _, step := range job.Steps {
-		_, err := tx.Exec(ctx, stepQuery, step.ID, job.ID, step.StepOrder, step.Type, step.Atrributes)
+		_, err := tx.Exec(ctx, stepQuery, step.ID, job.ID, step.StepOrder, step.Type, step.Attributes)
 		if err != nil {
 			return fmt.Errorf("failed to insert updated job step: %w", err)
 		}

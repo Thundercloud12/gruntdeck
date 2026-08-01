@@ -26,7 +26,7 @@ type JobStep struct {
 	JobID      string
 	StepOrder  int
 	Type       string
-	Atrributes json.RawMessage
+	Attributes json.RawMessage
 }
 
 type Execution struct {

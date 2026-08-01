@@ -10,11 +10,19 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Thundercloud12/gruntdeck/internal/config"
+	"github.com/Thundercloud12/gruntdeck/internal/models"
 	"golang.org/x/crypto/ssh"
 )
 
-func RunCommand(ctx context.Context, target config.Target, cmd string) error {
+func getAddress(target models.Target) string {
+	port := target.Port
+	if port == "" {
+		port = "22"
+	}
+	return fmt.Sprintf("%s:%s", target.Host, port)
+}
+
+func RunCommand(ctx context.Context, target models.Target, cmd string) error {
 
 	authMethod, err := PublicKeyFile(target.KeyPath)
 	if err != nil {
@@ -35,7 +43,7 @@ func RunCommand(ctx context.Context, target config.Target, cmd string) error {
 		Timeout:         5 * time.Second,
 	}
 
-	address := fmt.Sprintf("%s:%d", target.Host, target.Port)
+	address := getAddress(target)
 
 	client, err := ssh.Dial("tcp", address, sshConfig)
 	if err != nil {
@@ -154,7 +162,7 @@ func RunCommand(ctx context.Context, target config.Target, cmd string) error {
 }
 
 // CopyFile transfers a local file to a destination path on the remote host.
-func CopyFile(ctx context.Context, target config.Target, localPath string, destPath string) error {
+func CopyFile(ctx context.Context, target models.Target, localPath string, destPath string) error {
 	authMethod, err := PublicKeyFile(target.KeyPath)
 	if err != nil {
 		return fmt.Errorf("failed to load private key: %w", err)
@@ -174,7 +182,7 @@ func CopyFile(ctx context.Context, target config.Target, localPath string, destP
 		Timeout:         5 * time.Second,
 	}
 
-	address := fmt.Sprintf("%s:%d", target.Host, target.Port)
+	address := getAddress(target)
 
 	client, err := ssh.Dial("tcp", address, sshConfig)
 	if err != nil {
@@ -219,7 +227,7 @@ func CopyFile(ctx context.Context, target config.Target, localPath string, destP
 }
 
 // RunScript copies a local script to the remote host, executes it, and deletes it afterward.
-func RunScript(ctx context.Context, target config.Target, localPath string, args []string) error {
+func RunScript(ctx context.Context, target models.Target, localPath string, args []string) error {
 	tempDest := fmt.Sprintf("/tmp/gruntdeck_%d.sh", time.Now().UnixNano())
 
 	// 1. Copy the script file to a remote temporary location

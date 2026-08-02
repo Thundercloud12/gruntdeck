@@ -14,7 +14,7 @@ import (
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 )
 
-type QueueService struct {
+type Producer struct {
 	client     *river.Client[pgx.Tx]
 	pool       *pgxpool.Pool
 	jobs       repository.JobRepository
@@ -22,13 +22,12 @@ type QueueService struct {
 	executions repository.ExecutionRepository
 }
 
-func NewQueueService(
-	pool *pgxpool.Pool,
-	jobs repository.JobRepository,
-	inventory repository.InventoryRepository,
-	executions repository.ExecutionRepository,
-) (*QueueService, error) {
+func NewProducer(pool *pgxpool.Pool) (*Producer, error) {
 	workers := river.NewWorkers()
+	if err := river.AddWorkerSafely(workers, newJobWorker(nil)); err != nil {
+		return nil, fmt.Errorf("failed to register worker in producer: %w", err)
+	}
+
 	client, err := river.NewClient(
 		riverpgxv5.New(pool),
 		&river.Config{
@@ -36,26 +35,25 @@ func NewQueueService(
 		},
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create river client: %w", err)
+		return nil, fmt.Errorf("failed to create river producer client: %w", err)
 	}
 
-	return &QueueService{
+	return &Producer{
 		client:     client,
 		pool:       pool,
-		jobs:       jobs,
-		inventory:  inventory,
-		executions: executions,
+		jobs:       repository.NewPostgresJobRepository(pool),
+		inventory:  repository.NewPostgresInventoryRepository(pool),
+		executions: repository.NewPostgresExecutionRepository(pool),
 	}, nil
 }
 
-// Enqueue loads the job & targets, creates an execution record, and inserts tasks into River queue atomically.
-func (qs *QueueService) Enqueue(ctx context.Context, jobID string) (string, int, error) {
-	job, err := qs.jobs.GetJobByID(ctx, jobID)
+func (p *Producer) EnqueueExecution(ctx context.Context, jobID string) (string, int, error) {
+	job, err := p.jobs.GetJobByID(ctx, jobID)
 	if err != nil || job == nil {
 		return "", 0, fmt.Errorf("job %q not found: %w", jobID, err)
 	}
 
-	targets, err := qs.inventory.GetTargetByTags(ctx, job.TargetFilter)
+	targets, err := p.inventory.GetTargetByTags(ctx, job.TargetFilter)
 	if err != nil {
 		return "", 0, fmt.Errorf("failed to load targets for job %q: %w", jobID, err)
 	}
@@ -64,7 +62,7 @@ func (qs *QueueService) Enqueue(ctx context.Context, jobID string) (string, int,
 	}
 
 	executionID := uuid.New().String()
-	err = qs.executions.CreateExecution(ctx, models.Execution{
+	err = p.executions.CreateExecution(ctx, models.Execution{
 		ID:           executionID,
 		JobID:        jobID,
 		Status:       "queued",
@@ -75,7 +73,7 @@ func (qs *QueueService) Enqueue(ctx context.Context, jobID string) (string, int,
 		return "", 0, fmt.Errorf("failed to create execution record: %w", err)
 	}
 
-	tx, err := qs.pool.Begin(ctx)
+	tx, err := p.pool.Begin(ctx)
 	if err != nil {
 		return "", 0, fmt.Errorf("failed to begin transaction: %w", err)
 	}
@@ -92,7 +90,7 @@ func (qs *QueueService) Enqueue(ctx context.Context, jobID string) (string, int,
 		}
 	}
 
-	_, err = qs.client.InsertManyTx(ctx, tx, insertParams)
+	_, err = p.client.InsertManyTx(ctx, tx, insertParams)
 	if err != nil {
 		return "", 0, fmt.Errorf("failed to insert river jobs: %w", err)
 	}

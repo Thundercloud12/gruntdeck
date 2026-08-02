@@ -21,7 +21,7 @@ func main() {
 
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
-		log.Fatalf("DATABASE_URL environment variable is required. Please set it in your .env file or environment.")
+		log.Fatalf("DATABASE_URL environment variable is required.")
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -49,20 +49,20 @@ func main() {
 
 	execService := execution.New(jobRepo, invRepo, execRepo, logRepo)
 
-	workerClient, err := queue.NewWorkerClient(pool, execService)
+	worker, err := queue.NewWorker(pool, execService)
 	if err != nil {
-		log.Fatalf("Failed to create worker client: %v", err)
+		log.Fatalf("Failed to create worker: %v", err)
 	}
 
-	fmt.Println("🚀 River Queue Worker started. Waiting for execution jobs...")
-	if err := workerClient.Start(ctx); err != nil {
-		log.Fatalf("Failed to start worker client: %v", err)
+	fmt.Println("🚀 River Queue Worker daemon started. Waiting for execution jobs...")
+	if err := worker.Start(ctx); err != nil {
+		log.Fatalf("Worker start error: %v", err)
 	}
 
 	<-ctx.Done()
 	fmt.Println("🛑 Shutting down River Queue Worker gracefully...")
-	if err := workerClient.Stop(context.Background()); err != nil {
-		log.Printf("Error stopping worker client: %v", err)
+	if err := worker.Stop(context.Background()); err != nil {
+		log.Printf("Error stopping worker: %v", err)
 	}
 	fmt.Println("Bye!")
 }

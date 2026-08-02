@@ -8,14 +8,13 @@ import (
 
 	"github.com/Thundercloud12/gruntdeck/internal/migrations"
 	"github.com/Thundercloud12/gruntdeck/internal/queue"
-	"github.com/Thundercloud12/gruntdeck/internal/repository"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 )
 
 func main() {
 	if len(os.Args) < 2 {
-		log.Fatalf("Usage: producer <job-id>\nExample: producer health-check")
+		log.Fatalf("Usage: producer <job-id>\nExample: producer deploy-app")
 	}
 	jobID := os.Args[1]
 
@@ -23,7 +22,7 @@ func main() {
 
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
-		log.Fatalf("DATABASE_URL environment variable is required. Please set it in your .env file or environment.")
+		log.Fatalf("DATABASE_URL environment variable is required.")
 	}
 
 	ctx := context.Background()
@@ -42,18 +41,14 @@ func main() {
 		log.Fatalf("River migration failed: %v", err)
 	}
 
-	jobRepo := repository.NewPostgresJobRepository(pool)
-	invRepo := repository.NewPostgresInventoryRepository(pool)
-	execRepo := repository.NewPostgresExecutionRepository(pool)
-
-	queueService, err := queue.NewQueueService(pool, jobRepo, invRepo, execRepo)
+	producer, err := queue.NewProducer(pool)
 	if err != nil {
-		log.Fatalf("Failed to initialize queue service: %v", err)
+		log.Fatalf("Failed to create producer: %v", err)
 	}
 
-	executionID, targetCount, err := queueService.Enqueue(ctx, jobID)
+	executionID, targetCount, err := producer.EnqueueExecution(ctx, jobID)
 	if err != nil {
-		log.Fatalf("Failed to enqueue job: %v", err)
+		log.Fatalf("Enqueue failed: %v", err)
 	}
 
 	fmt.Printf("🚀 Successfully enqueued Job '%s' across %d target nodes.\nExecution ID: %s\n", jobID, targetCount, executionID)

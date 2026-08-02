@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
-	"sync"
 	"time"
 
 	"github.com/Thundercloud12/gruntdeck/internal/models"
@@ -56,96 +54,7 @@ func (s *Service) LoadJob(ctx context.Context, executionID string, jobID string)
 	return *job, nil
 }
 
-// ExecuteJob orchestrates parallel execution across all matching targets for a job.
-func (s *Service) ExecuteJob(ctx context.Context, executionID string, jobID string) error {
-	job, err := s.LoadJob(ctx, executionID, jobID)
-	if err != nil {
-		return err
-	}
-
-	matchedTargets, err := s.inventory.GetTargetByTags(ctx, job.TargetFilter)
-	if err != nil {
-		return fmt.Errorf("error loading targets from database: %w", err)
-	}
-
-	if len(matchedTargets) == 0 {
-		return fmt.Errorf("no targets matched the criteria for job %q (filter: %v)", job.Name, job.TargetFilter)
-	}
-
-	if s.executions != nil {
-		err := s.executions.CreateExecution(ctx, models.Execution{
-			ID:           executionID,
-			JobID:        jobID,
-			Status:       "running",
-			StartedAt:    time.Now(),
-			TargetsTotal: len(matchedTargets),
-		})
-		if err != nil {
-			fmt.Printf("Warning: Failed to create execution record in database: %v\n", err)
-		}
-	}
-
-	fmt.Printf("Job: %s | Matching Nodes: %d\n", job.Name, len(matchedTargets))
-	fmt.Println(strings.Repeat("=", 60))
-
-	type targetResult struct {
-		target models.Target
-		err    error
-	}
-
-	results := make(chan targetResult, len(matchedTargets))
-	var wg sync.WaitGroup
-
-	for _, t := range matchedTargets {
-		wg.Add(1)
-		go func(target models.Target) {
-			defer wg.Done()
-			err := s.ExecuteTarget(ctx, executionID, jobID, target.ID)
-			results <- targetResult{target: target, err: err}
-		}(t)
-	}
-
-	go func() {
-		wg.Wait()
-		close(results)
-	}()
-
-	var failed, succeeded int
-	for res := range results {
-		if res.err != nil {
-			fmt.Printf("❌ [SYSTEM] %s@%s failed: %v\n", res.target.User, res.target.Host, res.err)
-			failed++
-		} else {
-			succeeded++
-		}
-	}
-
-	fmt.Println(strings.Repeat("=", 60))
-	fmt.Printf("Execution Summary: %d Succeeded | %d Failed\n", succeeded, failed)
-
-	if s.executions != nil && executionID != "" {
-		status := "succeeded"
-		if failed > 0 {
-			status = "failed"
-		}
-		_ = s.executions.UpdateExecution(ctx, models.Execution{
-			ID:               executionID,
-			JobID:            jobID,
-			Status:           status,
-			EndedAt:          time.Now(),
-			TargetsTotal:     len(matchedTargets),
-			TargetsSucceeded: succeeded,
-			TargetsFailed:    failed,
-		})
-	}
-
-	if failed > 0 {
-		return fmt.Errorf("execution completed with %d failed target(s)", failed)
-	}
-	return nil
-}
-
-// ExecuteTarget runs all job steps sequentially for a single target node.
+// ExecuteTarget loads job and target by ID and runs all steps for that target node.
 func (s *Service) ExecuteTarget(ctx context.Context, executionID string, jobID string, targetID string) error {
 	job, err := s.LoadJob(ctx, executionID, jobID)
 	if err != nil {
@@ -160,8 +69,13 @@ func (s *Service) ExecuteTarget(ctx context.Context, executionID string, jobID s
 		return fmt.Errorf("target %q not found", targetID)
 	}
 
+	return s.ExecuteTargetOnNode(ctx, executionID, job, *target)
+}
+
+// ExecuteTargetOnNode runs all job steps sequentially on an already loaded target node without redundant DB queries.
+func (s *Service) ExecuteTargetOnNode(ctx context.Context, executionID string, job models.Job, target models.Target) error {
 	for i, step := range job.Steps {
-		if err := s.ExecuteStep(ctx, executionID, *target, step); err != nil {
+		if err := s.ExecuteStep(ctx, executionID, target, step); err != nil {
 			return fmt.Errorf("step %d failed: %w", i+1, err)
 		}
 	}
@@ -226,12 +140,9 @@ func (s *Service) ExecuteStep(ctx context.Context, executionID string, target mo
 }
 
 func (s *Service) executeJobRef(ctx context.Context, executionID string, target models.Target, refJobID string) error {
-	refJob, err := s.jobs.GetJobByID(ctx, refJobID)
+	refJob, err := s.LoadJob(ctx, executionID, refJobID)
 	if err != nil {
 		return fmt.Errorf("job reference %q not found in database: %w", refJobID, err)
-	}
-	if refJob == nil {
-		return fmt.Errorf("job reference %q not found", refJobID)
 	}
 
 	for i, step := range refJob.Steps {

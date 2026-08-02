@@ -5,21 +5,18 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/Thundercloud12/gruntdeck/internal/execution"
 	"github.com/Thundercloud12/gruntdeck/internal/migrations"
+	"github.com/Thundercloud12/gruntdeck/internal/queue"
 	"github.com/Thundercloud12/gruntdeck/internal/repository"
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 )
 
 func main() {
-	if len(os.Args) < 2 {
-		log.Fatalf("Usage: executor <job-id>\nExample: executor health-check")
-	}
-	jobID := os.Args[1]
-
 	_ = godotenv.Load()
 
 	dbURL := os.Getenv("DATABASE_URL")
@@ -27,7 +24,8 @@ func main() {
 		log.Fatalf("DATABASE_URL environment variable is required. Please set it in your .env file or environment.")
 	}
 
-	ctx := context.Background()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
 	fmt.Println("🐘 Connecting to PostgreSQL database...")
 	if err := migrations.RunMigrations(dbURL); err != nil {
@@ -40,6 +38,10 @@ func main() {
 	}
 	defer pool.Close()
 
+	if err := queue.RunMigrations(ctx, pool); err != nil {
+		log.Fatalf("River migration failed: %v", err)
+	}
+
 	jobRepo := repository.NewPostgresJobRepository(pool)
 	invRepo := repository.NewPostgresInventoryRepository(pool)
 	execRepo := repository.NewPostgresExecutionRepository(pool)
@@ -47,8 +49,20 @@ func main() {
 
 	execService := execution.New(jobRepo, invRepo, execRepo, logRepo)
 
-	executionID := uuid.New().String()
-	if err := execService.ExecuteJob(ctx, executionID, jobID); err != nil {
-		os.Exit(1)
+	workerClient, err := queue.NewWorkerClient(pool, execService)
+	if err != nil {
+		log.Fatalf("Failed to create worker client: %v", err)
 	}
+
+	fmt.Println("🚀 River Queue Worker started. Waiting for execution jobs...")
+	if err := workerClient.Start(ctx); err != nil {
+		log.Fatalf("Failed to start worker client: %v", err)
+	}
+
+	<-ctx.Done()
+	fmt.Println("🛑 Shutting down River Queue Worker gracefully...")
+	if err := workerClient.Stop(context.Background()); err != nil {
+		log.Printf("Error stopping worker client: %v", err)
+	}
+	fmt.Println("Bye!")
 }

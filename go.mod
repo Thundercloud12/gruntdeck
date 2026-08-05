@@ -24,6 +24,7 @@ require (
 	github.com/riverqueue/river/riverdriver/riverpgxv5 v0.42.0 // indirect
 	github.com/riverqueue/river/rivershared v0.42.0 // indirect
 	github.com/riverqueue/river/rivertype v0.42.0 // indirect
+	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/rogpeppe/go-internal v1.15.0 // indirect
 	github.com/stretchr/testify v1.11.1 // indirect
 	github.com/tidwall/gjson v1.19.0 // indirect

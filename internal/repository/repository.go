@@ -37,3 +37,12 @@ type LogRepository interface {
 	AddLogEntry(ctx context.Context, log models.LogEntry) error
 	GetLogsByExecutionID(ctx context.Context, executionID string) ([]models.LogEntry, error)
 }
+
+type ScheduleRepository interface {
+	CreateSchedule(ctx context.Context, schedule models.Schedule) error
+	GetScheduleByID(ctx context.Context, id string) (*models.Schedule, error)
+	ListSchedules(ctx context.Context) ([]models.Schedule, error)
+
+	UpdateSchedule(ctx context.Context, schedule models.Schedule) error
+	DeleteSchedule(ctx context.Context, id string) error
+}

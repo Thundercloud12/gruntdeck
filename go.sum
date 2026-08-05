@@ -73,6 +73,8 @@ github.com/riverqueue/river/rivershared v0.42.0 h1:GZ+EXh3QbcSPUx8FlLcVpkv9MrOf8
 github.com/riverqueue/river/rivershared v0.42.0/go.mod h1:EThAIEr49dlUQFhVLJcQGKoMlnPKOq+UxdMi9jevVsk=
 github.com/riverqueue/river/rivertype v0.42.0 h1:K7YEpq4WZFhMXi2b6M1mjLD4WwnJvI15gkVe6FREpTY=
 github.com/riverqueue/river/rivertype v0.42.0/go.mod h1:D1Ad+EaZiaXbQbJcJcfeicXJMBKno0n6UcfKI5Q7DIQ=
+github.com/robfig/cron/v3 v3.0.1 h1:WdRxkvbJztn8LMz/QEvLN5sBU+xKpSqwwUO1Pjr4qDs=
+github.com/robfig/cron/v3 v3.0.1/go.mod h1:eQICP3HwyT7UooqI/z+Ov+PtYAWygg1TEWWzGIFLtro=
 github.com/rogpeppe/go-internal v1.15.0 h1:D0RCU5rMAp+SpgkiNdrjfJ+LX4J1M32V2NeCY7EJ6hc=
 github.com/rogpeppe/go-internal v1.15.0/go.mod h1:DrUVZyrJU+txYW5/1kwtXQSMFio52ZOxX7yM1VHvnxs=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=

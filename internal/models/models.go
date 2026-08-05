@@ -62,3 +62,14 @@ type LogEntry struct {
 	Level       string    `json:"level"`
 	Message     string    `json:"message"`
 }
+
+type Schedule struct {
+	ID             string            `json:"id"`
+	JobID          string            `json:"job_id"`
+	CronExpression string            `json:"cron_expression"`
+	Timezone       string            `json:"timezone"`
+	Enabled        bool              `json:"enabled"`
+	Options        map[string]string `json:"options"`
+	CreatedAt      time.Time         `json:"created_at"`
+	UpdatedAt      time.Time         `json:"updated_at"`
+}

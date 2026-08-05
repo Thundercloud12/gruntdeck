@@ -11,6 +11,7 @@ import (
 	"github.com/Thundercloud12/gruntdeck/internal/migrations"
 	"github.com/Thundercloud12/gruntdeck/internal/queue"
 	"github.com/Thundercloud12/gruntdeck/internal/repository"
+	"github.com/Thundercloud12/gruntdeck/internal/scheduler"
 	"github.com/Thundercloud12/gruntdeck/web"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
@@ -54,8 +55,15 @@ func main() {
 	execRepo := repository.NewPostgresExecutionRepository(pool)
 	logRepo := repository.NewPostgresLogRepository(pool)
 	invRepo := repository.NewPostgresInventoryRepository(pool)
+	schedRepo := repository.NewPostgresScheduleRepository(pool)
 
-	apiRouter := api.NewRouter(producer, jobRepo, execRepo, logRepo, invRepo)
+	schedService := scheduler.NewService(schedRepo, producer)
+	if err := schedService.Start(ctx); err != nil {
+		log.Printf("⚠️ Failed to start scheduler service: %v", err)
+	}
+	defer schedService.Stop()
+
+	apiRouter := api.NewRouter(producer, jobRepo, execRepo, logRepo, invRepo, schedRepo, schedService)
 
 	mux := http.NewServeMux()
 	mux.Handle("/api/", apiRouter)

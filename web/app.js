@@ -19,6 +19,7 @@ function setupNavigation() {
       document.getElementById(targetId).classList.add('active');
 
       if (targetId === 'jobs-tab') loadJobs();
+      if (targetId === 'schedules-tab') loadSchedules();
       if (targetId === 'executions-tab') loadExecutions();
       if (targetId === 'targets-tab') loadTargets();
     });
@@ -65,7 +66,96 @@ async function loadJobs() {
   }
 }
 
-// 2. Trigger Execution with Runtime Options
+// 2. Fetch & Render Schedules
+async function loadSchedules() {
+  const tbody = document.getElementById('schedules-table-body');
+  try {
+    const res = await fetch('/api/v1/schedules');
+    if (!res.ok) throw new Error('Failed to fetch schedules');
+    const schedules = await res.json();
+
+    if (!schedules || schedules.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" class="text-center loading-text">No recurring schedules active.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = schedules.map(s => {
+      const statusBadge = s.enabled 
+        ? '<span class="badge badge-status succeeded">Active</span>' 
+        : '<span class="badge badge-status failed">Disabled</span>';
+
+      return `
+        <tr>
+          <td><span class="badge badge-mono">${s.id}</span></td>
+          <td><strong>${escapeHTML(s.job_id)}</strong></td>
+          <td><code style="color: #60a5fa; font-family: var(--font-mono);">${escapeHTML(s.cron_expression)}</code></td>
+          <td>${escapeHTML(s.timezone || 'UTC')}</td>
+          <td>${statusBadge}</td>
+          <td class="text-right">
+            <button class="btn btn-secondary btn-xs" style="color: #ef4444; border-color: rgba(239, 68, 68, 0.3);" onclick="deleteSchedule('${s.id}')">
+              🗑️ Delete
+            </button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="6" class="text-center loading-text" style="color: var(--danger);">Error loading schedules: ${err.message}</td></tr>`;
+  }
+}
+
+// Prompt to Add a New Schedule
+async function createSchedulePrompt() {
+  const jobID = prompt("Enter Job ID to schedule:");
+  if (!jobID) return;
+
+  const cronExpr = prompt("Enter Cron Expression (e.g. '0 0 2 * * *' for 2 AM daily, '0 */30 * * * *' for every 30m):", "0 0 2 * * *");
+  if (!cronExpr) return;
+
+  const timezone = prompt("Enter Timezone (e.g. 'UTC', 'Asia/Kolkata', 'America/New_York'):", "UTC");
+
+  try {
+    const res = await fetch('/api/v1/schedules', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        job_id: jobID.trim(),
+        cron_expression: cronExpr.trim(),
+        timezone: (timezone || 'UTC').trim()
+      })
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(errText || 'Failed to create schedule');
+    }
+
+    alert('⏰ Schedule created and registered with Cron Engine successfully!');
+    loadSchedules();
+  } catch (err) {
+    alert(`❌ Failed to create schedule: ${err.message}`);
+  }
+}
+
+// Delete Schedule
+async function deleteSchedule(scheduleID) {
+  if (!confirm(`Are you sure you want to delete schedule ${scheduleID}?`)) return;
+
+  try {
+    const res = await fetch(`/api/v1/schedules/${encodeURIComponent(scheduleID)}`, {
+      method: 'DELETE'
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(errText || 'Failed to delete schedule');
+    }
+    loadSchedules();
+  } catch (err) {
+    alert(`❌ Failed to delete schedule: ${err.message}`);
+  }
+}
+
+// 3. Trigger Execution with Runtime Options
 async function runJob(jobID) {
   let optionValues = {};
   try {
@@ -113,7 +203,7 @@ async function runJob(jobID) {
   }
 }
 
-// 3. Fetch & Render Executions
+// 4. Fetch & Render Executions
 async function loadExecutions() {
   const tbody = document.getElementById('executions-table-body');
   try {
@@ -150,7 +240,7 @@ async function loadExecutions() {
   }
 }
 
-// 4. Fetch & Render Targets
+// 5. Fetch & Render Targets
 async function loadTargets() {
   const tbody = document.getElementById('targets-table-body');
   try {
@@ -180,7 +270,7 @@ async function loadTargets() {
   }
 }
 
-// 5. Terminal Log Console Modal
+// 6. Terminal Log Console Modal
 function openLogModal(executionID) {
   currentExecutionID = executionID;
   document.getElementById('modal-execution-id').innerText = `ID: ${executionID}`;

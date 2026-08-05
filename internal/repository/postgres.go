@@ -16,6 +16,7 @@ var _ InventoryRepository = (*PostgresInventoryRepository)(nil)
 var _ JobRepository = (*PostgresJobRepository)(nil)
 var _ ExecutionRepository = (*PostgresExecutionRepository)(nil)
 var _ LogRepository = (*PostgresLogRepository)(nil)
+var _ ScheduleRepository = (*PostgresScheduleRepository)(nil)
 
 // ==========================================
 // InventoryRepository Implementation
@@ -572,4 +573,144 @@ func (r *PostgresLogRepository) GetLogsByExecutionID(ctx context.Context, execut
 	}
 
 	return logs, rows.Err()
+}
+
+// ==========================================
+// ScheduleRepository Implementation
+// ==========================================
+
+type PostgresScheduleRepository struct {
+	pool *pgxpool.Pool
+}
+
+func NewPostgresScheduleRepository(pool *pgxpool.Pool) *PostgresScheduleRepository {
+	return &PostgresScheduleRepository{pool: pool}
+}
+
+func (r *PostgresScheduleRepository) CreateSchedule(ctx context.Context, schedule models.Schedule) error {
+	optionsJSON, err := json.Marshal(schedule.Options)
+	if err != nil {
+		optionsJSON = []byte("{}")
+	}
+
+	query := `
+		INSERT INTO schedules (id, job_id, cron_expression, timezone, enabled, options, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+	`
+	_, err = r.pool.Exec(
+		ctx, query,
+		schedule.ID, schedule.JobID, schedule.CronExpression,
+		schedule.Timezone, schedule.Enabled, optionsJSON,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create schedule: %w", err)
+	}
+	return nil
+}
+
+func (r *PostgresScheduleRepository) GetScheduleByID(ctx context.Context, id string) (*models.Schedule, error) {
+	query := `
+		SELECT id, job_id, cron_expression, timezone, enabled, options, created_at, updated_at
+		FROM schedules
+		WHERE id = $1
+	`
+	row := r.pool.QueryRow(ctx, query, id)
+
+	var s models.Schedule
+	var optionsRaw []byte
+
+	err := row.Scan(
+		&s.ID, &s.JobID, &s.CronExpression,
+		&s.Timezone, &s.Enabled, &optionsRaw,
+		&s.CreatedAt, &s.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, fmt.Errorf("schedule not found: %s", id)
+		}
+		return nil, fmt.Errorf("failed to scan schedule: %w", err)
+	}
+
+	if len(optionsRaw) > 0 {
+		_ = json.Unmarshal(optionsRaw, &s.Options)
+	}
+	if s.Options == nil {
+		s.Options = make(map[string]string)
+	}
+
+	return &s, nil
+}
+
+func (r *PostgresScheduleRepository) ListSchedules(ctx context.Context) ([]models.Schedule, error) {
+	query := `
+		SELECT id, job_id, cron_expression, timezone, enabled, options, created_at, updated_at
+		FROM schedules
+		ORDER BY created_at DESC
+	`
+	rows, err := r.pool.Query(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list schedules: %w", err)
+	}
+	defer rows.Close()
+
+	var schedules []models.Schedule
+	for rows.Next() {
+		var s models.Schedule
+		var optionsRaw []byte
+
+		err := rows.Scan(
+			&s.ID, &s.JobID, &s.CronExpression,
+			&s.Timezone, &s.Enabled, &optionsRaw,
+			&s.CreatedAt, &s.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan schedule row: %w", err)
+		}
+		if len(optionsRaw) > 0 {
+			_ = json.Unmarshal(optionsRaw, &s.Options)
+		}
+		if s.Options == nil {
+			s.Options = make(map[string]string)
+		}
+		schedules = append(schedules, s)
+	}
+
+	return schedules, rows.Err()
+}
+
+func (r *PostgresScheduleRepository) UpdateSchedule(ctx context.Context, schedule models.Schedule) error {
+	optionsJSON, err := json.Marshal(schedule.Options)
+	if err != nil {
+		optionsJSON = []byte("{}")
+	}
+
+	query := `
+		UPDATE schedules
+		SET job_id = $2, cron_expression = $3, timezone = $4, enabled = $5, options = $6, updated_at = NOW()
+		WHERE id = $1
+	`
+	tag, err := r.pool.Exec(
+		ctx, query,
+		schedule.ID, schedule.JobID, schedule.CronExpression,
+		schedule.Timezone, schedule.Enabled, optionsJSON,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to update schedule: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("schedule not found: %s", schedule.ID)
+	}
+	return nil
+}
+
+func (r *PostgresScheduleRepository) DeleteSchedule(ctx context.Context, id string) error {
+	query := `DELETE FROM schedules WHERE id = $1`
+	tag, err := r.pool.Exec(ctx, query, id)
+	if err != nil {
+		return fmt.Errorf("failed to delete schedule: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("schedule not found: %s", id)
+	}
+	return nil
 }

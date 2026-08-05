@@ -6,21 +6,27 @@ import (
 
 	"github.com/Thundercloud12/gruntdeck/internal/models"
 	"github.com/Thundercloud12/gruntdeck/internal/ssh"
+	"github.com/Thundercloud12/gruntdeck/internal/variables"
 )
 
-func (s *Service) handleFileCopyStep(ctx context.Context, executionID string, target models.Target, step models.JobStep, cfg StepConfig) error {
+func (s *Service) handleFileCopyStep(ctx context.Context, execCtx models.ExecutionContext, step models.JobStep, cfg StepConfig) error {
 	if cfg.SourcePath == "" || cfg.DestPath == "" {
 		return fmt.Errorf("missing file-copy source_path or dest_path")
 	}
-	msg := fmt.Sprintf("[%s@%s] 📁 Copying local %s to remote %s...", target.User, target.Host, cfg.SourcePath, cfg.DestPath)
+
+	sourcePath := variables.Resolve(cfg.SourcePath, execCtx)
+	destPath := variables.Resolve(cfg.DestPath, execCtx)
+
+	msg := fmt.Sprintf("[%s@%s] 📁 Copying local %s to remote %s...", execCtx.Target.User, execCtx.Target.Host, sourcePath, destPath)
 	fmt.Println(msg)
-	err := ssh.CopyFile(ctx, target, cfg.SourcePath, cfg.DestPath)
+
+	err := ssh.CopyFile(ctx, execCtx.Target, sourcePath, destPath)
 	if err == nil {
-		successMsg := fmt.Sprintf("[%s@%s] 📁 Successfully copied %s", target.User, target.Host, cfg.DestPath)
+		successMsg := fmt.Sprintf("[%s@%s] 📁 Successfully copied %s", execCtx.Target.User, execCtx.Target.Host, destPath)
 		fmt.Println(successMsg)
-		s.recordLog(ctx, executionID, target.Host, step.ID, "info", successMsg, nil)
+		s.recordLog(ctx, execCtx.Execution.ID, execCtx.Target.Host, step.ID, "info", successMsg, nil)
 	} else {
-		s.recordLog(ctx, executionID, target.Host, step.ID, "error", msg, err)
+		s.recordLog(ctx, execCtx.Execution.ID, execCtx.Target.Host, step.ID, "error", msg, err)
 	}
 	return err
 }

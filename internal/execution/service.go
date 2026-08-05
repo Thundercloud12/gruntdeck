@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/Thundercloud12/gruntdeck/internal/models"
 	"github.com/Thundercloud12/gruntdeck/internal/repository"
@@ -51,36 +52,83 @@ func (s *Service) LoadJob(ctx context.Context, executionID string, jobID string)
 	return *job, nil
 }
 
-// ExecuteTarget loads job and target by ID and runs all steps for that target node.
+// ExecuteTarget loads job and target by ID, builds ExecutionContext, updates status, and executes steps.
 func (s *Service) ExecuteTarget(ctx context.Context, executionID string, jobID string, targetID string) error {
+	var execRecord *models.Execution
+	if s.executions != nil {
+		if rec, err := s.executions.GetExecutionByID(ctx, executionID); err == nil && rec != nil {
+			execRecord = rec
+			execRecord.Status = "running"
+			_ = s.executions.UpdateExecution(ctx, *execRecord)
+		}
+	}
+
 	job, err := s.LoadJob(ctx, executionID, jobID)
 	if err != nil {
+		s.markExecutionFailed(ctx, executionID)
 		return err
 	}
 
 	target, err := s.inventory.GetTargetByID(ctx, targetID)
 	if err != nil {
+		s.markExecutionFailed(ctx, executionID)
 		return err
 	}
 	if target == nil {
+		s.markExecutionFailed(ctx, executionID)
 		return fmt.Errorf("target %q not found", targetID)
 	}
 
-	return s.ExecuteTargetOnNode(ctx, executionID, job, *target)
+	execCtx := models.ExecutionContext{
+		Job:    job,
+		Target: *target,
+	}
+
+	if execRecord != nil {
+		execCtx.Execution = *execRecord
+		execCtx.Options = execRecord.Options
+	}
+
+	if err := s.ExecuteTargetOnNode(ctx, execCtx); err != nil {
+		s.markExecutionFailed(ctx, executionID)
+		return err
+	}
+
+	// Transition status to "succeeded"
+	if s.executions != nil && execRecord != nil {
+		execRecord.Status = "succeeded"
+		execRecord.TargetsSucceeded += 1
+		execRecord.EndedAt = time.Now()
+		_ = s.executions.UpdateExecution(ctx, *execRecord)
+	}
+
+	return nil
 }
 
-// ExecuteTargetOnNode runs all job steps sequentially on an loaded target node.
-func (s *Service) ExecuteTargetOnNode(ctx context.Context, executionID string, job models.Job, target models.Target) error {
-	for i, step := range job.Steps {
-		if err := s.ExecuteStep(ctx, executionID, target, step); err != nil {
+func (s *Service) markExecutionFailed(ctx context.Context, executionID string) {
+	if s.executions == nil {
+		return
+	}
+	if execRecord, err := s.executions.GetExecutionByID(ctx, executionID); err == nil && execRecord != nil {
+		execRecord.Status = "failed"
+		execRecord.TargetsFailed += 1
+		execRecord.EndedAt = time.Now()
+		_ = s.executions.UpdateExecution(ctx, *execRecord)
+	}
+}
+
+// ExecuteTargetOnNode runs all job steps sequentially on a target node using ExecutionContext.
+func (s *Service) ExecuteTargetOnNode(ctx context.Context, execCtx models.ExecutionContext) error {
+	for i, step := range execCtx.Job.Steps {
+		if err := s.ExecuteStep(ctx, execCtx, step); err != nil {
 			return fmt.Errorf("step %d failed: %w", i+1, err)
 		}
 	}
 	return nil
 }
 
-// ExecuteStep parses step attributes and delegates to step handlers.
-func (s *Service) ExecuteStep(ctx context.Context, executionID string, target models.Target, step models.JobStep) error {
+// ExecuteStep parses step attributes and delegates to step handlers using ExecutionContext.
+func (s *Service) ExecuteStep(ctx context.Context, execCtx models.ExecutionContext, step models.JobStep) error {
 	cfg, err := parseStepConfig(step)
 	if err != nil {
 		return err
@@ -88,16 +136,16 @@ func (s *Service) ExecuteStep(ctx context.Context, executionID string, target mo
 
 	switch cfg.Type {
 	case "command":
-		return s.handleCommandStep(ctx, executionID, target, step, cfg)
+		return s.handleCommandStep(ctx, execCtx, step, cfg)
 
 	case "script":
-		return s.handleScriptStep(ctx, executionID, target, step, cfg)
+		return s.handleScriptStep(ctx, execCtx, step, cfg)
 
 	case "file-copy":
-		return s.handleFileCopyStep(ctx, executionID, target, step, cfg)
+		return s.handleFileCopyStep(ctx, execCtx, step, cfg)
 
 	case "job-ref":
-		return s.handleJobRefStep(ctx, executionID, target, step, cfg)
+		return s.handleJobRefStep(ctx, execCtx, step, cfg)
 
 	default:
 		return fmt.Errorf("unknown step type: %s", cfg.Type)

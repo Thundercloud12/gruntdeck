@@ -1,6 +1,7 @@
 # Binaries
 executor
 producer
+server
 gruntdeck
 
 # Environment
@@ -8,3 +9,8 @@ gruntdeck
 
 # Known Hosts
 .gruntdeck/
+
+# Ignore all markdown files except README.md
+*.md
+!README.md
+!readme.md

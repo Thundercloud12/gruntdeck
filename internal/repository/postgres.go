@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -184,6 +185,22 @@ func (r *PostgresJobRepository) GetJobByID(ctx context.Context, jobID string) (*
 		job.Steps = append(job.Steps, step)
 	}
 
+	optionsQuery := `
+		SELECT id, job_id, name, description, type, required, default_value, choices
+		FROM job_options
+		WHERE job_id = $1
+	`
+	optRows, err := r.pool.Query(ctx, optionsQuery, jobID)
+	if err == nil {
+		defer optRows.Close()
+		for optRows.Next() {
+			var opt models.JobOption
+			if err := optRows.Scan(&opt.ID, &opt.JobID, &opt.Name, &opt.Description, &opt.Type, &opt.Required, &opt.DefaultValue, &opt.Choices); err == nil {
+				job.Options = append(job.Options, opt)
+			}
+		}
+	}
+
 	return &job, rows.Err()
 }
 
@@ -207,7 +224,7 @@ func (r *PostgresJobRepository) ListJobs(ctx context.Context) ([]models.Job, err
 		jobs = append(jobs, job)
 	}
 
-	// Fetch steps for each job
+	// Fetch steps & options for each job
 	for i := range jobs {
 		stepsQuery := `
 			SELECT id, job_id, step_order, type, attributes
@@ -216,19 +233,31 @@ func (r *PostgresJobRepository) ListJobs(ctx context.Context) ([]models.Job, err
 			ORDER BY step_order ASC
 		`
 		stepRows, err := r.pool.Query(ctx, stepsQuery, jobs[i].ID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to query steps for job %s: %w", jobs[i].ID, err)
+		if err == nil {
+			for stepRows.Next() {
+				var step models.JobStep
+				if err := stepRows.Scan(&step.ID, &step.JobID, &step.StepOrder, &step.Type, &step.Attributes); err == nil {
+					jobs[i].Steps = append(jobs[i].Steps, step)
+				}
+			}
+			stepRows.Close()
 		}
 
-		for stepRows.Next() {
-			var step models.JobStep
-			if err := stepRows.Scan(&step.ID, &step.JobID, &step.StepOrder, &step.Type, &step.Attributes); err != nil {
-				stepRows.Close()
-				return nil, fmt.Errorf("failed to scan step for job %s: %w", jobs[i].ID, err)
+		optionsQuery := `
+			SELECT id, job_id, name, description, type, required, default_value, choices
+			FROM job_options
+			WHERE job_id = $1
+		`
+		optRows, err := r.pool.Query(ctx, optionsQuery, jobs[i].ID)
+		if err == nil {
+			for optRows.Next() {
+				var opt models.JobOption
+				if err := optRows.Scan(&opt.ID, &opt.JobID, &opt.Name, &opt.Description, &opt.Type, &opt.Required, &opt.DefaultValue, &opt.Choices); err == nil {
+					jobs[i].Options = append(jobs[i].Options, opt)
+				}
 			}
-			jobs[i].Steps = append(jobs[i].Steps, step)
+			optRows.Close()
 		}
-		stepRows.Close()
 	}
 
 	return jobs, rows.Err()
@@ -258,6 +287,17 @@ func (r *PostgresJobRepository) AddJob(ctx context.Context, job models.Job) erro
 		_, err := tx.Exec(ctx, stepQuery, step.ID, job.ID, step.StepOrder, step.Type, step.Attributes)
 		if err != nil {
 			return fmt.Errorf("failed to insert job step: %w", err)
+		}
+	}
+
+	optQuery := `
+		INSERT INTO job_options (id, job_id, name, description, type, required, default_value, choices)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+	`
+	for _, opt := range job.Options {
+		_, err := tx.Exec(ctx, optQuery, opt.ID, job.ID, opt.Name, opt.Description, opt.Type, opt.Required, opt.DefaultValue, opt.Choices)
+		if err != nil {
+			return fmt.Errorf("failed to insert job option: %w", err)
 		}
 	}
 
@@ -301,6 +341,22 @@ func (r *PostgresJobRepository) UpdateJob(ctx context.Context, job models.Job) e
 		_, err := tx.Exec(ctx, stepQuery, step.ID, job.ID, step.StepOrder, step.Type, step.Attributes)
 		if err != nil {
 			return fmt.Errorf("failed to insert updated job step: %w", err)
+		}
+	}
+
+	deleteOptsQuery := `DELETE FROM job_options WHERE job_id = $1`
+	if _, err := tx.Exec(ctx, deleteOptsQuery, job.ID); err != nil {
+		return fmt.Errorf("failed to delete existing job options: %w", err)
+	}
+
+	optQuery := `
+		INSERT INTO job_options (id, job_id, name, description, type, required, default_value, choices)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+	`
+	for _, opt := range job.Options {
+		_, err := tx.Exec(ctx, optQuery, opt.ID, job.ID, opt.Name, opt.Description, opt.Type, opt.Required, opt.DefaultValue, opt.Choices)
+		if err != nil {
+			return fmt.Errorf("failed to insert updated job option: %w", err)
 		}
 	}
 
@@ -350,13 +406,18 @@ func NewPostgresExecutionRepository(pool *pgxpool.Pool) *PostgresExecutionReposi
 }
 
 func (r *PostgresExecutionRepository) CreateExecution(ctx context.Context, execution models.Execution) error {
+	optionsJSON, err := json.Marshal(execution.Options)
+	if err != nil {
+		optionsJSON = []byte("{}")
+	}
+
 	query := `
-		INSERT INTO executions (id, job_id, status, started_at, ended_at, targets_total, targets_succeeded, targets_failed)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		INSERT INTO executions (id, job_id, status, options, started_at, ended_at, targets_total, targets_succeeded, targets_failed)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`
-	_, err := r.pool.Exec(
+	_, err = r.pool.Exec(
 		ctx, query,
-		execution.ID, execution.JobID, execution.Status,
+		execution.ID, execution.JobID, execution.Status, optionsJSON,
 		execution.StartedAt, execution.EndedAt,
 		execution.TargetsTotal, execution.TargetsSucceeded, execution.TargetsFailed,
 	)
@@ -368,15 +429,17 @@ func (r *PostgresExecutionRepository) CreateExecution(ctx context.Context, execu
 
 func (r *PostgresExecutionRepository) GetExecutionByID(ctx context.Context, id string) (*models.Execution, error) {
 	query := `
-		SELECT id, job_id, status, started_at, ended_at, targets_total, targets_succeeded, targets_failed
+		SELECT id, job_id, status, options, started_at, ended_at, targets_total, targets_succeeded, targets_failed
 		FROM executions
 		WHERE id = $1
 	`
 	row := r.pool.QueryRow(ctx, query, id)
 
 	var exec models.Execution
+	var optionsRaw []byte
+
 	err := row.Scan(
-		&exec.ID, &exec.JobID, &exec.Status,
+		&exec.ID, &exec.JobID, &exec.Status, &optionsRaw,
 		&exec.StartedAt, &exec.EndedAt,
 		&exec.TargetsTotal, &exec.TargetsSucceeded, &exec.TargetsFailed,
 	)
@@ -387,12 +450,19 @@ func (r *PostgresExecutionRepository) GetExecutionByID(ctx context.Context, id s
 		return nil, fmt.Errorf("failed to scan execution: %w", err)
 	}
 
+	if len(optionsRaw) > 0 {
+		_ = json.Unmarshal(optionsRaw, &exec.Options)
+	}
+	if exec.Options == nil {
+		exec.Options = make(map[string]string)
+	}
+
 	return &exec, nil
 }
 
 func (r *PostgresExecutionRepository) ListExecutions(ctx context.Context) ([]models.Execution, error) {
 	query := `
-		SELECT id, job_id, status, started_at, ended_at, targets_total, targets_succeeded, targets_failed
+		SELECT id, job_id, status, options, started_at, ended_at, targets_total, targets_succeeded, targets_failed
 		FROM executions
 		ORDER BY started_at DESC
 	`
@@ -405,13 +475,21 @@ func (r *PostgresExecutionRepository) ListExecutions(ctx context.Context) ([]mod
 	var executions []models.Execution
 	for rows.Next() {
 		var exec models.Execution
+		var optionsRaw []byte
+
 		err := rows.Scan(
-			&exec.ID, &exec.JobID, &exec.Status,
+			&exec.ID, &exec.JobID, &exec.Status, &optionsRaw,
 			&exec.StartedAt, &exec.EndedAt,
 			&exec.TargetsTotal, &exec.TargetsSucceeded, &exec.TargetsFailed,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan execution row: %w", err)
+		}
+		if len(optionsRaw) > 0 {
+			_ = json.Unmarshal(optionsRaw, &exec.Options)
+		}
+		if exec.Options == nil {
+			exec.Options = make(map[string]string)
 		}
 		executions = append(executions, exec)
 	}

@@ -1,0 +1,12 @@
+CREATE TABLE IF NOT EXISTS job_options (
+    id VARCHAR(255) PRIMARY KEY,
+    job_id VARCHAR(255) NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    type VARCHAR(50) NOT NULL DEFAULT 'string',
+    required BOOLEAN NOT NULL DEFAULT false,
+    default_value TEXT NOT NULL DEFAULT '',
+    choices TEXT[] NOT NULL DEFAULT '{}'
+);
+
+ALTER TABLE executions ADD COLUMN IF NOT EXISTS options JSONB NOT NULL DEFAULT '{}'::jsonb;

@@ -1,0 +1,2 @@
+ALTER TABLE executions DROP COLUMN IF EXISTS options;
+DROP TABLE IF EXISTS job_options;

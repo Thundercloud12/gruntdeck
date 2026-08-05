@@ -4,37 +4,29 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
-	"strings"
 
+	"github.com/Thundercloud12/gruntdeck/internal/api"
 	"github.com/Thundercloud12/gruntdeck/internal/migrations"
 	"github.com/Thundercloud12/gruntdeck/internal/queue"
+	"github.com/Thundercloud12/gruntdeck/internal/repository"
+	"github.com/Thundercloud12/gruntdeck/web"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 )
 
 func main() {
-	if len(os.Args) < 2 {
-		log.Fatalf("Usage: producer <job-id> [--KEY=VALUE ...]\nExample: producer deploy-app --APP_VERSION=v2.0.1 --ENVIRONMENT=production")
-	}
-	jobID := os.Args[1]
-
-	options := make(map[string]string)
-	for _, arg := range os.Args[2:] {
-		if strings.HasPrefix(arg, "--") && strings.Contains(arg, "=") {
-			pair := strings.TrimPrefix(arg, "--")
-			parts := strings.SplitN(pair, "=", 2)
-			if len(parts) == 2 {
-				options[parts[0]] = parts[1]
-			}
-		}
-	}
-
 	_ = godotenv.Load()
 
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
 		log.Fatalf("DATABASE_URL environment variable is required.")
+	}
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
 	}
 
 	ctx := context.Background()
@@ -58,10 +50,19 @@ func main() {
 		log.Fatalf("Failed to create producer: %v", err)
 	}
 
-	executionID, targetCount, err := producer.EnqueueExecutionWithOptions(ctx, jobID, options)
-	if err != nil {
-		log.Fatalf("Enqueue failed: %v", err)
-	}
+	jobRepo := repository.NewPostgresJobRepository(pool)
+	execRepo := repository.NewPostgresExecutionRepository(pool)
+	logRepo := repository.NewPostgresLogRepository(pool)
+	invRepo := repository.NewPostgresInventoryRepository(pool)
 
-	fmt.Printf("🚀 Successfully enqueued Job '%s' across %d target nodes with options %v.\nExecution ID: %s\n", jobID, targetCount, options, executionID)
+	apiRouter := api.NewRouter(producer, jobRepo, execRepo, logRepo, invRepo)
+
+	mux := http.NewServeMux()
+	mux.Handle("/api/", apiRouter)
+	mux.Handle("/", http.FileServer(http.FS(web.Files)))
+
+	fmt.Printf("🌐 Gruntdeck Web Dashboard & API Server running on http://localhost:%s\n", port)
+	if err := http.ListenAndServe(":"+port, mux); err != nil {
+		log.Fatalf("API Server stopped: %v", err)
+	}
 }

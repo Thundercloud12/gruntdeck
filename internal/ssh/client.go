@@ -23,6 +23,10 @@ func getAddress(target models.Target) string {
 }
 
 func RunCommand(ctx context.Context, target models.Target, cmd string) error {
+	return RunCommandWithOutput(ctx, target, cmd, nil)
+}
+
+func RunCommandWithOutput(ctx context.Context, target models.Target, cmd string, onLogLine func(line string, isErr bool)) error {
 
 	authMethod, err := PublicKeyFile(target.KeyPath)
 	if err != nil {
@@ -113,10 +117,14 @@ func RunCommand(ctx context.Context, target models.Target, cmd string) error {
 		scanner.Buffer(make([]byte, 64*1024), 1024*1024)
 
 		for scanner.Scan() {
+			text := scanner.Text()
 			if isErr {
-				fmt.Printf("%s ❌ %s\n", prefix, scanner.Text())
+				fmt.Printf("%s ❌ %s\n", prefix, text)
 			} else {
-				fmt.Printf("%s ➜ %s\n", prefix, scanner.Text())
+				fmt.Printf("%s ➜ %s\n", prefix, text)
+			}
+			if onLogLine != nil {
+				onLogLine(text, isErr)
 			}
 		}
 
@@ -228,6 +236,10 @@ func CopyFile(ctx context.Context, target models.Target, localPath string, destP
 
 // RunScript copies a local script to the remote host, executes it, and deletes it afterward.
 func RunScript(ctx context.Context, target models.Target, localPath string, args []string) error {
+	return RunScriptWithOutput(ctx, target, localPath, args, nil)
+}
+
+func RunScriptWithOutput(ctx context.Context, target models.Target, localPath string, args []string, onLogLine func(line string, isErr bool)) error {
 	tempDest := fmt.Sprintf("/tmp/gruntdeck_%d.sh", time.Now().UnixNano())
 
 	// 1. Copy the script file to a remote temporary location
@@ -257,6 +269,6 @@ func RunScript(ctx context.Context, target models.Target, localPath string, args
 		cmd = fmt.Sprintf("%s %s", tempDest, strings.Join(escapedArgs, " "))
 	}
 
-	// 4. Run the script using the production-grade RunCommand
-	return RunCommand(ctx, target, cmd)
+	// 4. Run the script using RunCommandWithOutput
+	return RunCommandWithOutput(ctx, target, cmd, onLogLine)
 }

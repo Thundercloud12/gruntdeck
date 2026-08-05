@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gruntdeck — Distributed Automation Engine</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <!-- Header -->
+  <header class="app-header">
+    <div class="logo-container">
+      <span class="logo-icon">⚡</span>
+      <span class="logo-title">Gruntdeck</span>
+      <span class="version-badge">v1.0 (River-Powered)</span>
+    </div>
+    <nav class="nav-tabs">
+      <button class="nav-tab active" data-tab="jobs-tab">📋 Jobs</button>
+      <button class="nav-tab" data-tab="executions-tab">⏱️ Executions</button>
+      <button class="nav-tab" data-tab="targets-tab">🖥️ Target Nodes</button>
+    </nav>
+    <div class="header-status">
+      <span class="status-dot online"></span>
+      <span>API & River Active</span>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="main-container">
+    
+    <!-- Jobs Tab -->
+    <section id="jobs-tab" class="tab-content active">
+      <div class="section-header">
+        <div>
+          <h2>Automation Jobs</h2>
+          <p class="section-desc">Executable task definitions & target filters</p>
+        </div>
+        <button class="btn btn-secondary" onclick="loadJobs()">🔄 Refresh</button>
+      </div>
+
+      <div class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Job Name / ID</th>
+              <th>Target Filter Tags</th>
+              <th>Pipeline Steps</th>
+              <th class="text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="jobs-table-body">
+            <tr><td colspan="4" class="text-center loading-text">Loading jobs...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Executions Tab -->
+    <section id="executions-tab" class="tab-content">
+      <div class="section-header">
+        <div>
+          <h2>Execution History</h2>
+          <p class="section-desc">Real-time and past automation runs</p>
+        </div>
+        <button class="btn btn-secondary" onclick="loadExecutions()">🔄 Refresh</button>
+      </div>
+
+      <div class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Execution ID</th>
+              <th>Job ID</th>
+              <th>Status</th>
+              <th>Targets Total</th>
+              <th>Started At</th>
+              <th class="text-right">Logs</th>
+            </tr>
+          </thead>
+          <tbody id="executions-table-body">
+            <tr><td colspan="6" class="text-center loading-text">Loading execution history...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Targets Tab -->
+    <section id="targets-tab" class="tab-content">
+      <div class="section-header">
+        <div>
+          <h2>Target Inventory</h2>
+          <p class="section-desc">Managed remote SSH infrastructure nodes</p>
+        </div>
+        <button class="btn btn-secondary" onclick="loadTargets()">🔄 Refresh</button>
+      </div>
+
+      <div class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Target ID</th>
+              <th>Host / IP</th>
+              <th>Port</th>
+              <th>SSH User</th>
+              <th>Tags</th>
+            </tr>
+          </thead>
+          <tbody id="targets-table-body">
+            <tr><td colspan="5" class="text-center loading-text">Loading target nodes...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Log Console Modal -->
+  <div id="log-modal" class="modal-overlay hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <h3>Terminal Execution Console</h3>
+          <span id="modal-execution-id" class="badge badge-mono">ID: -</span>
+        </div>
+        <button class="modal-close-btn" onclick="closeLogModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="terminal-toolbar">
+          <span class="terminal-dot red"></span>
+          <span class="terminal-dot yellow"></span>
+          <span class="terminal-dot green"></span>
+          <span id="terminal-status" class="terminal-status-text">Status: Log Output</span>
+          <div class="terminal-actions">
+            <button class="btn-xs btn-secondary" onclick="refreshCurrentLogs()">🔄 Refresh Logs</button>
+          </div>
+        </div>
+        <pre id="terminal-log-output" class="terminal-console">Select an execution run to view logs...</pre>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

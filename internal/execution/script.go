@@ -6,15 +6,34 @@ import (
 
 	"github.com/Thundercloud12/gruntdeck/internal/models"
 	"github.com/Thundercloud12/gruntdeck/internal/ssh"
+	"github.com/Thundercloud12/gruntdeck/internal/variables"
 )
 
-func (s *Service) handleScriptStep(ctx context.Context, executionID string, target models.Target, step models.JobStep, cfg StepConfig) error {
+func (s *Service) handleScriptStep(ctx context.Context, execCtx models.ExecutionContext, step models.JobStep, cfg StepConfig) error {
 	if cfg.SourcePath == "" {
 		return fmt.Errorf("missing script source_path")
 	}
-	msg := fmt.Sprintf("[%s@%s] 📜 Uploading and executing script %s %v...", target.User, target.Host, cfg.SourcePath, cfg.Args)
-	fmt.Println(msg)
-	err := ssh.RunScript(ctx, target, cfg.SourcePath, cfg.Args)
-	s.recordLog(ctx, executionID, target.Host, step.ID, "info", msg, err)
+
+	sourcePath := variables.Resolve(cfg.SourcePath, execCtx)
+	resolvedArgs := make([]string, len(cfg.Args))
+	for i, arg := range cfg.Args {
+		resolvedArgs[i] = variables.Resolve(arg, execCtx)
+	}
+
+	msg := fmt.Sprintf("[%s@%s] 📜 Uploading and executing script %s %v...", execCtx.Target.User, execCtx.Target.Host, sourcePath, resolvedArgs)
+	s.recordLog(ctx, execCtx.Execution.ID, execCtx.Target.Host, step.ID, "info", msg, nil)
+
+	err := ssh.RunScriptWithOutput(ctx, execCtx.Target, sourcePath, resolvedArgs, func(line string, isErr bool) {
+		level := "info"
+		if isErr {
+			level = "error"
+		}
+		s.recordLog(ctx, execCtx.Execution.ID, execCtx.Target.Host, step.ID, level, line, nil)
+	})
+
+	if err != nil {
+		s.recordLog(ctx, execCtx.Execution.ID, execCtx.Target.Host, step.ID, "error", fmt.Sprintf("Script failed: %v", err), err)
+	}
+
 	return err
 }

@@ -3,6 +3,7 @@ package queue
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/Thundercloud12/gruntdeck/internal/models"
@@ -48,9 +49,62 @@ func NewProducer(pool *pgxpool.Pool) (*Producer, error) {
 }
 
 func (p *Producer) EnqueueExecution(ctx context.Context, jobID string) (string, int, error) {
+	return p.EnqueueExecutionWithOptions(ctx, jobID, nil)
+}
+
+func (p *Producer) EnqueueExecutionWithOptions(ctx context.Context, jobID string, userOptions map[string]string) (string, int, error) {
+	if userOptions == nil {
+		userOptions = make(map[string]string)
+	}
+
 	job, err := p.jobs.GetJobByID(ctx, jobID)
 	if err != nil || job == nil {
 		return "", 0, fmt.Errorf("job %q not found: %w", jobID, err)
+	}
+
+	// Validate & merge options
+	mergedOptions := make(map[string]string)
+	for _, opt := range job.Options {
+		val, exists := userOptions[opt.Name]
+		if !exists {
+			// Fallback check case-insensitive match
+			for k, v := range userOptions {
+				if strings.EqualFold(k, opt.Name) {
+					val = v
+					exists = true
+					break
+				}
+			}
+		}
+
+		if !exists || strings.TrimSpace(val) == "" {
+			if opt.Required && opt.DefaultValue == "" {
+				return "", 0, fmt.Errorf("missing required option %q for job %q", opt.Name, job.Name)
+			}
+			val = opt.DefaultValue
+		}
+
+		if len(opt.Choices) > 0 && val != "" {
+			validChoice := false
+			for _, choice := range opt.Choices {
+				if choice == val {
+					validChoice = true
+					break
+				}
+			}
+			if !validChoice {
+				return "", 0, fmt.Errorf("invalid value %q for option %q; allowed choices: %v", val, opt.Name, opt.Choices)
+			}
+		}
+
+		mergedOptions[opt.Name] = val
+	}
+
+	// Copy over any additional options provided by user that were not in schema
+	for k, v := range userOptions {
+		if _, exists := mergedOptions[k]; !exists {
+			mergedOptions[k] = v
+		}
 	}
 
 	targets, err := p.inventory.GetTargetByTags(ctx, job.TargetFilter)
@@ -66,6 +120,7 @@ func (p *Producer) EnqueueExecution(ctx context.Context, jobID string) (string, 
 		ID:           executionID,
 		JobID:        jobID,
 		Status:       "queued",
+		Options:      mergedOptions,
 		StartedAt:    time.Now(),
 		TargetsTotal: len(targets),
 	})
@@ -86,6 +141,7 @@ func (p *Producer) EnqueueExecution(ctx context.Context, jobID string) (string, 
 				ExecutionID: executionID,
 				JobID:       jobID,
 				TargetID:    target.ID,
+				Options:     mergedOptions,
 			},
 		}
 	}

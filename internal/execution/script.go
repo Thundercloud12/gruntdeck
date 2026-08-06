@@ -23,7 +23,13 @@ func (s *Service) handleScriptStep(ctx context.Context, execCtx models.Execution
 	msg := fmt.Sprintf("[%s@%s] 📜 Uploading and executing script %s %v...", execCtx.Target.User, execCtx.Target.Host, sourcePath, resolvedArgs)
 	s.recordLog(ctx, execCtx.Execution.ID, execCtx.Target.Host, step.ID, "info", msg, nil)
 
-	err := ssh.RunScriptWithOutput(ctx, execCtx.Target, sourcePath, resolvedArgs, func(line string, isErr bool) {
+	cred, err := s.ResolveCredential(ctx, execCtx.Target)
+	if err != nil {
+		s.recordLog(ctx, execCtx.Execution.ID, execCtx.Target.Host, step.ID, "error", fmt.Sprintf("Credential resolution failed: %v", err), err)
+		return err
+	}
+
+	err = ssh.RunScriptWithCredential(ctx, execCtx.Target, sourcePath, resolvedArgs, cred, func(line string, isErr bool) {
 		level := "info"
 		if isErr {
 			level = "error"

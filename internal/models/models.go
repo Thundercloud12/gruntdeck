@@ -6,12 +6,40 @@ import (
 )
 
 type Target struct {
-	ID      string   `json:"id"`
-	Host    string   `json:"host"`
-	Port    string   `json:"port"`
-	User    string   `json:"user"`
-	KeyPath string   `json:"key_path"`
-	Tags    []string `json:"tags"`
+	ID           string   `json:"id"`
+	Host         string   `json:"host"`
+	Port         string   `json:"port"`
+	User         string   `json:"user"`
+	KeyPath      string   `json:"key_path"`
+	CredentialID string   `json:"credential_id"`
+	Tags         []string `json:"tags"`
+}
+
+type Credential struct {
+	ID            string    `json:"id"`
+	Name          string    `json:"name"`
+	Type          string    `json:"type"` // "ssh_key", "password", "token"
+	EncryptedData []byte    `json:"-"`
+	Nonce         []byte    `json:"-"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+}
+
+type User struct {
+	ID           string    `json:"id"`
+	Username     string    `json:"username"`
+	PasswordHash string    `json:"-"`
+	Role         string    `json:"role"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
+type Session struct {
+	ID        string    `json:"id"`
+	UserID    string    `json:"user_id"`
+	Token     string    `json:"token"`
+	ExpiresAt time.Time `json:"expires_at"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 type JobOption struct {

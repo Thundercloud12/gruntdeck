@@ -8,6 +8,7 @@ import (
 
 	"github.com/Thundercloud12/gruntdeck/internal/models"
 	"github.com/Thundercloud12/gruntdeck/internal/repository"
+	"github.com/Thundercloud12/gruntdeck/internal/secrets"
 )
 
 type StepConfig struct {
@@ -20,10 +21,12 @@ type StepConfig struct {
 }
 
 type Service struct {
-	jobs       repository.JobRepository
-	inventory  repository.InventoryRepository
-	executions repository.ExecutionRepository
-	logs       repository.LogRepository
+	jobs        repository.JobRepository
+	inventory   repository.InventoryRepository
+	executions  repository.ExecutionRepository
+	logs        repository.LogRepository
+	credentials repository.CredentialRepository
+	secrets     *secrets.Service
 }
 
 func New(
@@ -37,6 +40,28 @@ func New(
 		inventory:  inventory,
 		executions: executions,
 		logs:       logs,
+		secrets:    secrets.NewService(),
+	}
+}
+
+func NewWithSecrets(
+	jobs repository.JobRepository,
+	inventory repository.InventoryRepository,
+	executions repository.ExecutionRepository,
+	logs repository.LogRepository,
+	credentials repository.CredentialRepository,
+	secSvc *secrets.Service,
+) *Service {
+	if secSvc == nil {
+		secSvc = secrets.NewService()
+	}
+	return &Service{
+		jobs:        jobs,
+		inventory:   inventory,
+		executions:  executions,
+		logs:        logs,
+		credentials: credentials,
+		secrets:     secSvc,
 	}
 }
 
@@ -50,6 +75,30 @@ func (s *Service) LoadJob(ctx context.Context, executionID string, jobID string)
 		return models.Job{}, fmt.Errorf("job %q not found", jobID)
 	}
 	return *job, nil
+}
+
+// ResolveCredential retrieves and decrypts target credentials in-memory.
+func (s *Service) ResolveCredential(ctx context.Context, target models.Target) (*models.Credential, error) {
+	if target.CredentialID == "" || s.credentials == nil || s.secrets == nil {
+		return nil, nil
+	}
+
+	credRecord, err := s.credentials.GetCredentialByID(ctx, target.CredentialID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch credential %s: %w", target.CredentialID, err)
+	}
+
+	decryptedPayload, err := s.secrets.Decrypt(credRecord.EncryptedData, credRecord.Nonce)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt credential %s: %w", target.CredentialID, err)
+	}
+
+	return &models.Credential{
+		ID:            credRecord.ID,
+		Name:          credRecord.Name,
+		Type:          credRecord.Type,
+		EncryptedData: decryptedPayload, // Plaintext payload in-memory only
+	}, nil
 }
 
 // ExecuteTarget loads job and target by ID, builds ExecutionContext, updates status, and executes steps.
@@ -94,7 +143,6 @@ func (s *Service) ExecuteTarget(ctx context.Context, executionID string, jobID s
 		return err
 	}
 
-	// Transition status to "succeeded"
 	if s.executions != nil && execRecord != nil {
 		execRecord.Status = "succeeded"
 		execRecord.TargetsSucceeded += 1
@@ -117,7 +165,6 @@ func (s *Service) markExecutionFailed(ctx context.Context, executionID string) {
 	}
 }
 
-// ExecuteTargetOnNode runs all job steps sequentially on a target node using ExecutionContext.
 func (s *Service) ExecuteTargetOnNode(ctx context.Context, execCtx models.ExecutionContext) error {
 	for i, step := range execCtx.Job.Steps {
 		if err := s.ExecuteStep(ctx, execCtx, step); err != nil {
@@ -127,7 +174,6 @@ func (s *Service) ExecuteTargetOnNode(ctx context.Context, execCtx models.Execut
 	return nil
 }
 
-// ExecuteStep parses step attributes and delegates to step handlers using ExecutionContext.
 func (s *Service) ExecuteStep(ctx context.Context, execCtx models.ExecutionContext, step models.JobStep) error {
 	cfg, err := parseStepConfig(step)
 	if err != nil {

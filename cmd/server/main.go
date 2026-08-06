@@ -12,6 +12,7 @@ import (
 	"github.com/Thundercloud12/gruntdeck/internal/queue"
 	"github.com/Thundercloud12/gruntdeck/internal/repository"
 	"github.com/Thundercloud12/gruntdeck/internal/scheduler"
+	"github.com/Thundercloud12/gruntdeck/internal/secrets"
 	"github.com/Thundercloud12/gruntdeck/web"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
@@ -56,6 +57,10 @@ func main() {
 	logRepo := repository.NewPostgresLogRepository(pool)
 	invRepo := repository.NewPostgresInventoryRepository(pool)
 	schedRepo := repository.NewPostgresScheduleRepository(pool)
+	credRepo := repository.NewPostgresCredentialRepository(pool)
+	userRepo := repository.NewPostgresUserRepository(pool)
+	sessionRepo := repository.NewPostgresSessionRepository(pool)
+	secSvc := secrets.NewService()
 
 	schedService := scheduler.NewService(schedRepo, producer)
 	if err := schedService.Start(ctx); err != nil {
@@ -63,14 +68,16 @@ func main() {
 	}
 	defer schedService.Stop()
 
-	apiRouter := api.NewRouter(producer, jobRepo, execRepo, logRepo, invRepo, schedRepo, schedService)
+	apiServer := api.NewServer(producer, jobRepo, execRepo, logRepo, invRepo, schedRepo, credRepo, userRepo, sessionRepo, schedService, secSvc)
 
 	mux := http.NewServeMux()
-	mux.Handle("/api/", apiRouter)
+	mux.Handle("/api/", apiServer.Routes())
 	mux.Handle("/", http.FileServer(http.FS(web.Files)))
 
+	handler := apiServer.RequireAuth(mux)
+
 	fmt.Printf("🌐 Gruntdeck Web Dashboard & API Server running on http://localhost:%s\n", port)
-	if err := http.ListenAndServe(":"+port, mux); err != nil {
+	if err := http.ListenAndServe(":"+port, handler); err != nil {
 		log.Fatalf("API Server stopped: %v", err)
 	}
 }

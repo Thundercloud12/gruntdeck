@@ -12,6 +12,7 @@ import (
 	"github.com/Thundercloud12/gruntdeck/internal/migrations"
 	"github.com/Thundercloud12/gruntdeck/internal/queue"
 	"github.com/Thundercloud12/gruntdeck/internal/repository"
+	"github.com/Thundercloud12/gruntdeck/internal/secrets"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 )
@@ -46,8 +47,10 @@ func main() {
 	invRepo := repository.NewPostgresInventoryRepository(pool)
 	execRepo := repository.NewPostgresExecutionRepository(pool)
 	logRepo := repository.NewPostgresLogRepository(pool)
+	credRepo := repository.NewPostgresCredentialRepository(pool)
+	secSvc := secrets.NewService()
 
-	execService := execution.New(jobRepo, invRepo, execRepo, logRepo)
+	execService := execution.NewWithSecrets(jobRepo, invRepo, execRepo, logRepo, credRepo, secSvc)
 
 	worker, err := queue.NewWorker(pool, execService)
 	if err != nil {

@@ -46,3 +46,23 @@ type ScheduleRepository interface {
 	UpdateSchedule(ctx context.Context, schedule models.Schedule) error
 	DeleteSchedule(ctx context.Context, id string) error
 }
+
+type CredentialRepository interface {
+	CreateCredential(ctx context.Context, cred models.Credential) error
+	GetCredentialByID(ctx context.Context, id string) (*models.Credential, error)
+	ListCredentials(ctx context.Context) ([]models.Credential, error)
+	DeleteCredential(ctx context.Context, id string) error
+}
+
+type UserRepository interface {
+	CreateUser(ctx context.Context, user models.User) error
+	GetUserByUsername(ctx context.Context, username string) (*models.User, error)
+	GetUserByID(ctx context.Context, id string) (*models.User, error)
+	ListUsers(ctx context.Context) ([]models.User, error)
+}
+
+type SessionRepository interface {
+	CreateSession(ctx context.Context, session models.Session) error
+	GetSessionByToken(ctx context.Context, token string) (*models.Session, error)
+	DeleteSession(ctx context.Context, token string) error
+}

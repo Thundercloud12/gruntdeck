@@ -17,6 +17,9 @@ var _ JobRepository = (*PostgresJobRepository)(nil)
 var _ ExecutionRepository = (*PostgresExecutionRepository)(nil)
 var _ LogRepository = (*PostgresLogRepository)(nil)
 var _ ScheduleRepository = (*PostgresScheduleRepository)(nil)
+var _ CredentialRepository = (*PostgresCredentialRepository)(nil)
+var _ UserRepository = (*PostgresUserRepository)(nil)
+var _ SessionRepository = (*PostgresSessionRepository)(nil)
 
 // ==========================================
 // InventoryRepository Implementation
@@ -36,7 +39,7 @@ func (r *PostgresInventoryRepository) GetTargetByTags(ctx context.Context, tags 
 	}
 
 	query := `
-		SELECT id, host, port, "user", key_path, tags
+		SELECT id, host, port, "user", key_path, COALESCE(credential_id, ''), tags
 		FROM targets
 		WHERE tags @> $1
 	`
@@ -49,7 +52,7 @@ func (r *PostgresInventoryRepository) GetTargetByTags(ctx context.Context, tags 
 	var targets []models.Target
 	for rows.Next() {
 		var t models.Target
-		if err := rows.Scan(&t.ID, &t.Host, &t.Port, &t.User, &t.KeyPath, &t.Tags); err != nil {
+		if err := rows.Scan(&t.ID, &t.Host, &t.Port, &t.User, &t.KeyPath, &t.CredentialID, &t.Tags); err != nil {
 			return nil, fmt.Errorf("failed to scan target row: %w", err)
 		}
 		targets = append(targets, t)
@@ -59,14 +62,14 @@ func (r *PostgresInventoryRepository) GetTargetByTags(ctx context.Context, tags 
 
 func (r *PostgresInventoryRepository) GetTargetByID(ctx context.Context, id string) (*models.Target, error) {
 	query := `
-		SELECT id, host, port, "user", key_path, tags
+		SELECT id, host, port, "user", key_path, COALESCE(credential_id, ''), tags
 		FROM targets
 		WHERE id = $1
 	`
 	row := r.pool.QueryRow(ctx, query, id)
 
 	var t models.Target
-	if err := row.Scan(&t.ID, &t.Host, &t.Port, &t.User, &t.KeyPath, &t.Tags); err != nil {
+	if err := row.Scan(&t.ID, &t.Host, &t.Port, &t.User, &t.KeyPath, &t.CredentialID, &t.Tags); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, fmt.Errorf("target not found: %s", id)
 		}
@@ -78,7 +81,7 @@ func (r *PostgresInventoryRepository) GetTargetByID(ctx context.Context, id stri
 
 func (r *PostgresInventoryRepository) ListTargets(ctx context.Context) ([]models.Target, error) {
 	query := `
-		SELECT id, host, port, "user", key_path, tags
+		SELECT id, host, port, "user", key_path, COALESCE(credential_id, ''), tags
 		FROM targets
 	`
 	rows, err := r.pool.Query(ctx, query)
@@ -90,7 +93,7 @@ func (r *PostgresInventoryRepository) ListTargets(ctx context.Context) ([]models
 	var targets []models.Target
 	for rows.Next() {
 		var t models.Target
-		if err := rows.Scan(&t.ID, &t.Host, &t.Port, &t.User, &t.KeyPath, &t.Tags); err != nil {
+		if err := rows.Scan(&t.ID, &t.Host, &t.Port, &t.User, &t.KeyPath, &t.CredentialID, &t.Tags); err != nil {
 			return nil, fmt.Errorf("failed to scan target row: %w", err)
 		}
 		targets = append(targets, t)
@@ -100,10 +103,10 @@ func (r *PostgresInventoryRepository) ListTargets(ctx context.Context) ([]models
 
 func (r *PostgresInventoryRepository) AddTarget(ctx context.Context, target models.Target) error {
 	query := `
-		INSERT INTO targets (id, host, port, "user", key_path, tags)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO targets (id, host, port, "user", key_path, credential_id, tags)
+		VALUES ($1, $2, $3, $4, $5, NULLIF($6, ''), $7)
 	`
-	_, err := r.pool.Exec(ctx, query, target.ID, target.Host, target.Port, target.User, target.KeyPath, target.Tags)
+	_, err := r.pool.Exec(ctx, query, target.ID, target.Host, target.Port, target.User, target.KeyPath, target.CredentialID, target.Tags)
 	if err != nil {
 		return fmt.Errorf("failed to add target: %w", err)
 	}
@@ -113,10 +116,10 @@ func (r *PostgresInventoryRepository) AddTarget(ctx context.Context, target mode
 func (r *PostgresInventoryRepository) UpdateTarget(ctx context.Context, target models.Target) error {
 	query := `
 		UPDATE targets
-		SET host = $2, port = $3, "user" = $4, key_path = $5, tags = $6
+		SET host = $2, port = $3, "user" = $4, key_path = $5, credential_id = NULLIF($6, ''), tags = $7
 		WHERE id = $1
 	`
-	tag, err := r.pool.Exec(ctx, query, target.ID, target.Host, target.Port, target.User, target.KeyPath, target.Tags)
+	tag, err := r.pool.Exec(ctx, query, target.ID, target.Host, target.Port, target.User, target.KeyPath, target.CredentialID, target.Tags)
 	if err != nil {
 		return fmt.Errorf("failed to update target: %w", err)
 	}
@@ -225,7 +228,6 @@ func (r *PostgresJobRepository) ListJobs(ctx context.Context) ([]models.Job, err
 		jobs = append(jobs, job)
 	}
 
-	// Fetch steps & options for each job
 	for i := range jobs {
 		stepsQuery := `
 			SELECT id, job_id, step_order, type, attributes
@@ -328,7 +330,6 @@ func (r *PostgresJobRepository) UpdateJob(ctx context.Context, job models.Job) e
 		return fmt.Errorf("job not found: %s", job.ID)
 	}
 
-	// Delete existing steps and re-insert
 	deleteStepsQuery := `DELETE FROM job_steps WHERE job_id = $1`
 	if _, err := tx.Exec(ctx, deleteStepsQuery, job.ID); err != nil {
 		return fmt.Errorf("failed to delete existing job steps: %w", err)
@@ -711,6 +712,215 @@ func (r *PostgresScheduleRepository) DeleteSchedule(ctx context.Context, id stri
 	}
 	if tag.RowsAffected() == 0 {
 		return fmt.Errorf("schedule not found: %s", id)
+	}
+	return nil
+}
+
+// ==========================================
+// CredentialRepository Implementation
+// ==========================================
+
+type PostgresCredentialRepository struct {
+	pool *pgxpool.Pool
+}
+
+func NewPostgresCredentialRepository(pool *pgxpool.Pool) *PostgresCredentialRepository {
+	return &PostgresCredentialRepository{pool: pool}
+}
+
+func (r *PostgresCredentialRepository) CreateCredential(ctx context.Context, cred models.Credential) error {
+	query := `
+		INSERT INTO credentials (id, name, type, encrypted_data, nonce, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+	`
+	_, err := r.pool.Exec(ctx, query, cred.ID, cred.Name, cred.Type, cred.EncryptedData, cred.Nonce)
+	if err != nil {
+		return fmt.Errorf("failed to create credential: %w", err)
+	}
+	return nil
+}
+
+func (r *PostgresCredentialRepository) GetCredentialByID(ctx context.Context, id string) (*models.Credential, error) {
+	query := `
+		SELECT id, name, type, encrypted_data, nonce, created_at, updated_at
+		FROM credentials
+		WHERE id = $1
+	`
+	row := r.pool.QueryRow(ctx, query, id)
+
+	var c models.Credential
+	if err := row.Scan(&c.ID, &c.Name, &c.Type, &c.EncryptedData, &c.Nonce, &c.CreatedAt, &c.UpdatedAt); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, fmt.Errorf("credential not found: %s", id)
+		}
+		return nil, fmt.Errorf("failed to scan credential: %w", err)
+	}
+
+	return &c, nil
+}
+
+func (r *PostgresCredentialRepository) ListCredentials(ctx context.Context) ([]models.Credential, error) {
+	query := `
+		SELECT id, name, type, created_at, updated_at
+		FROM credentials
+		ORDER BY created_at DESC
+	`
+	rows, err := r.pool.Query(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list credentials: %w", err)
+	}
+	defer rows.Close()
+
+	var creds []models.Credential
+	for rows.Next() {
+		var c models.Credential
+		if err := rows.Scan(&c.ID, &c.Name, &c.Type, &c.CreatedAt, &c.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("failed to scan credential row: %w", err)
+		}
+		creds = append(creds, c)
+	}
+	return creds, rows.Err()
+}
+
+func (r *PostgresCredentialRepository) DeleteCredential(ctx context.Context, id string) error {
+	query := `DELETE FROM credentials WHERE id = $1`
+	tag, err := r.pool.Exec(ctx, query, id)
+	if err != nil {
+		return fmt.Errorf("failed to delete credential: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("credential not found: %s", id)
+	}
+	return nil
+}
+
+// ==========================================
+// UserRepository Implementation
+// ==========================================
+
+type PostgresUserRepository struct {
+	pool *pgxpool.Pool
+}
+
+func NewPostgresUserRepository(pool *pgxpool.Pool) *PostgresUserRepository {
+	return &PostgresUserRepository{pool: pool}
+}
+
+func (r *PostgresUserRepository) CreateUser(ctx context.Context, u models.User) error {
+	query := `
+		INSERT INTO users (id, username, password_hash, role, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, NOW(), NOW())
+	`
+	_, err := r.pool.Exec(ctx, query, u.ID, u.Username, u.PasswordHash, u.Role)
+	if err != nil {
+		return fmt.Errorf("failed to create user: %w", err)
+	}
+	return nil
+}
+
+func (r *PostgresUserRepository) GetUserByUsername(ctx context.Context, username string) (*models.User, error) {
+	query := `
+		SELECT id, username, password_hash, role, created_at, updated_at
+		FROM users
+		WHERE username = $1
+	`
+	row := r.pool.QueryRow(ctx, query, username)
+	var u models.User
+	if err := row.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.CreatedAt, &u.UpdatedAt); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, fmt.Errorf("user not found: %s", username)
+		}
+		return nil, fmt.Errorf("failed to scan user: %w", err)
+	}
+	return &u, nil
+}
+
+func (r *PostgresUserRepository) GetUserByID(ctx context.Context, id string) (*models.User, error) {
+	query := `
+		SELECT id, username, password_hash, role, created_at, updated_at
+		FROM users
+		WHERE id = $1
+	`
+	row := r.pool.QueryRow(ctx, query, id)
+	var u models.User
+	if err := row.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.CreatedAt, &u.UpdatedAt); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, fmt.Errorf("user not found: %s", id)
+		}
+		return nil, fmt.Errorf("failed to scan user: %w", err)
+	}
+	return &u, nil
+}
+
+func (r *PostgresUserRepository) ListUsers(ctx context.Context) ([]models.User, error) {
+	query := `
+		SELECT id, username, password_hash, role, created_at, updated_at
+		FROM users
+		ORDER BY created_at ASC
+	`
+	rows, err := r.pool.Query(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list users: %w", err)
+	}
+	defer rows.Close()
+
+	var users []models.User
+	for rows.Next() {
+		var u models.User
+		if err := rows.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.CreatedAt, &u.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("failed to scan user row: %w", err)
+		}
+		users = append(users, u)
+	}
+	return users, rows.Err()
+}
+
+// ==========================================
+// SessionRepository Implementation
+// ==========================================
+
+type PostgresSessionRepository struct {
+	pool *pgxpool.Pool
+}
+
+func NewPostgresSessionRepository(pool *pgxpool.Pool) *PostgresSessionRepository {
+	return &PostgresSessionRepository{pool: pool}
+}
+
+func (r *PostgresSessionRepository) CreateSession(ctx context.Context, s models.Session) error {
+	query := `
+		INSERT INTO sessions (id, user_id, token, expires_at, created_at)
+		VALUES ($1, $2, $3, $4, NOW())
+	`
+	_, err := r.pool.Exec(ctx, query, s.ID, s.UserID, s.Token, s.ExpiresAt)
+	if err != nil {
+		return fmt.Errorf("failed to create session: %w", err)
+	}
+	return nil
+}
+
+func (r *PostgresSessionRepository) GetSessionByToken(ctx context.Context, token string) (*models.Session, error) {
+	query := `
+		SELECT id, user_id, token, expires_at, created_at
+		FROM sessions
+		WHERE token = $1 AND expires_at > NOW()
+	`
+	row := r.pool.QueryRow(ctx, query, token)
+	var s models.Session
+	if err := row.Scan(&s.ID, &s.UserID, &s.Token, &s.ExpiresAt, &s.CreatedAt); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, fmt.Errorf("session not found or expired")
+		}
+		return nil, fmt.Errorf("failed to scan session: %w", err)
+	}
+	return &s, nil
+}
+
+func (r *PostgresSessionRepository) DeleteSession(ctx context.Context, token string) error {
+	query := `DELETE FROM sessions WHERE token = $1`
+	_, err := r.pool.Exec(ctx, query, token)
+	if err != nil {
+		return fmt.Errorf("failed to delete session: %w", err)
 	}
 	return nil
 }

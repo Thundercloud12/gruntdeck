@@ -18,7 +18,13 @@ func (s *Service) handleCommandStep(ctx context.Context, execCtx models.Executio
 
 	s.recordLog(ctx, execCtx.Execution.ID, execCtx.Target.Host, step.ID, "info", fmt.Sprintf("Command: %s", cmdValue), nil)
 
-	err := ssh.RunCommandWithOutput(ctx, execCtx.Target, cmdValue, func(line string, isErr bool) {
+	cred, err := s.ResolveCredential(ctx, execCtx.Target)
+	if err != nil {
+		s.recordLog(ctx, execCtx.Execution.ID, execCtx.Target.Host, step.ID, "error", fmt.Sprintf("Credential resolution failed: %v", err), err)
+		return err
+	}
+
+	err = ssh.RunCommandWithCredential(ctx, execCtx.Target, cmdValue, cred, func(line string, isErr bool) {
 		level := "info"
 		if isErr {
 			level = "error"

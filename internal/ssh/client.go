@@ -22,15 +22,52 @@ func getAddress(target models.Target) string {
 	return fmt.Sprintf("%s:%s", target.Host, port)
 }
 
+// PublicKeyBytes creates an ssh.AuthMethod from in-memory private key bytes.
+func PublicKeyBytes(keyBytes []byte) (ssh.AuthMethod, error) {
+	signer, err := ssh.ParsePrivateKey(keyBytes)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse in-memory private key: %w", err)
+	}
+	return ssh.PublicKeys(signer), nil
+}
+
+// ResolveAuthMethod resolves authentication using decrypted credential bytes or target key_path fallback.
+func ResolveAuthMethod(target models.Target, secretBytes []byte, secretType string) (ssh.AuthMethod, error) {
+	if len(secretBytes) > 0 {
+		switch strings.ToLower(secretType) {
+		case "password":
+			return ssh.Password(string(secretBytes)), nil
+		default: // "ssh_key"
+			return PublicKeyBytes(secretBytes)
+		}
+	}
+
+	if target.KeyPath != "" {
+		return PublicKeyFile(target.KeyPath)
+	}
+
+	return nil, fmt.Errorf("no valid SSH credential provided for target %s", target.Host)
+}
+
 func RunCommand(ctx context.Context, target models.Target, cmd string) error {
-	return RunCommandWithOutput(ctx, target, cmd, nil)
+	return RunCommandWithCredential(ctx, target, cmd, nil, nil)
 }
 
 func RunCommandWithOutput(ctx context.Context, target models.Target, cmd string, onLogLine func(line string, isErr bool)) error {
+	return RunCommandWithCredential(ctx, target, cmd, nil, onLogLine)
+}
 
-	authMethod, err := PublicKeyFile(target.KeyPath)
+func RunCommandWithCredential(ctx context.Context, target models.Target, cmd string, cred *models.Credential, onLogLine func(line string, isErr bool)) error {
+	var secretBytes []byte
+	var secretType string
+	if cred != nil {
+		secretBytes = cred.EncryptedData // Expecting already decrypted payload or passed in
+		secretType = cred.Type
+	}
+
+	authMethod, err := ResolveAuthMethod(target, secretBytes, secretType)
 	if err != nil {
-		return fmt.Errorf("failed to load private key: %w", err)
+		return err
 	}
 
 	hostKeyCallback, err := GetHostKeyCallback()
@@ -171,9 +208,20 @@ func RunCommandWithOutput(ctx context.Context, target models.Target, cmd string,
 
 // CopyFile transfers a local file to a destination path on the remote host.
 func CopyFile(ctx context.Context, target models.Target, localPath string, destPath string) error {
-	authMethod, err := PublicKeyFile(target.KeyPath)
+	return CopyFileWithCredential(ctx, target, localPath, destPath, nil)
+}
+
+func CopyFileWithCredential(ctx context.Context, target models.Target, localPath string, destPath string, cred *models.Credential) error {
+	var secretBytes []byte
+	var secretType string
+	if cred != nil {
+		secretBytes = cred.EncryptedData
+		secretType = cred.Type
+	}
+
+	authMethod, err := ResolveAuthMethod(target, secretBytes, secretType)
 	if err != nil {
-		return fmt.Errorf("failed to load private key: %w", err)
+		return err
 	}
 
 	hostKeyCallback, err := GetHostKeyCallback()
@@ -198,7 +246,6 @@ func CopyFile(ctx context.Context, target models.Target, localPath string, destP
 	}
 	defer client.Close()
 
-	// Read local file contents
 	data, err := os.ReadFile(localPath)
 	if err != nil {
 		return fmt.Errorf("failed to read local file %s: %w", localPath, err)
@@ -215,7 +262,6 @@ func CopyFile(ctx context.Context, target models.Target, localPath string, destP
 		return fmt.Errorf("failed to get stdin pipe: %w", err)
 	}
 
-	// Create parent directories, write the file, and set standard permissions
 	cmd := fmt.Sprintf("mkdir -p \"$(dirname '%s')\" && cat > '%s' && chmod 0644 '%s'", destPath, destPath, destPath)
 	if err := session.Start(cmd); err != nil {
 		return fmt.Errorf("failed to start transfer command: %w", err)
@@ -240,26 +286,26 @@ func RunScript(ctx context.Context, target models.Target, localPath string, args
 }
 
 func RunScriptWithOutput(ctx context.Context, target models.Target, localPath string, args []string, onLogLine func(line string, isErr bool)) error {
+	return RunScriptWithCredential(ctx, target, localPath, args, nil, onLogLine)
+}
+
+func RunScriptWithCredential(ctx context.Context, target models.Target, localPath string, args []string, cred *models.Credential, onLogLine func(line string, isErr bool)) error {
 	tempDest := fmt.Sprintf("/tmp/gruntdeck_%d.sh", time.Now().UnixNano())
 
-	// 1. Copy the script file to a remote temporary location
-	err := CopyFile(ctx, target, localPath, tempDest)
+	err := CopyFileWithCredential(ctx, target, localPath, tempDest, cred)
 	if err != nil {
 		return fmt.Errorf("failed to copy script to remote host: %w", err)
 	}
 
-	// Ensure cleanup of the remote script on exit
 	defer func() {
-		_ = RunCommand(ctx, target, fmt.Sprintf("rm -f '%s'", tempDest))
+		_ = RunCommandWithCredential(ctx, target, fmt.Sprintf("rm -f '%s'", tempDest), cred, nil)
 	}()
 
-	// 2. Make the script executable
-	err = RunCommand(ctx, target, fmt.Sprintf("chmod +x '%s'", tempDest))
+	err = RunCommandWithCredential(ctx, target, fmt.Sprintf("chmod +x '%s'", tempDest), cred, nil)
 	if err != nil {
 		return fmt.Errorf("failed to make remote script executable: %w", err)
 	}
 
-	// 3. Format the execution command with arguments (escaping single quotes)
 	cmd := tempDest
 	if len(args) > 0 {
 		var escapedArgs []string
@@ -269,6 +315,5 @@ func RunScriptWithOutput(ctx context.Context, target models.Target, localPath st
 		cmd = fmt.Sprintf("%s %s", tempDest, strings.Join(escapedArgs, " "))
 	}
 
-	// 4. Run the script using RunCommandWithOutput
-	return RunCommandWithOutput(ctx, target, cmd, onLogLine)
+	return RunCommandWithCredential(ctx, target, cmd, cred, onLogLine)
 }

@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>User Guide & Documentation — Gruntdeck</title>
+  <meta name="description" content="Comprehensive user documentation for Gruntdeck Distributed Automation Engine.">
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <!-- App Header -->
+  <header class="app-header">
+    <a href="index.html" class="logo-container">
+      <svg class="icon logo-mark" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="12" cy="12" r="4" fill="currentColor" stroke="none"/></svg>
+      <span>Gruntdeck</span>
+      <span class="version-badge">User Guide</span>
+    </a>
+
+    <nav class="nav-tabs">
+      <a href="index.html" class="nav-tab">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+        Overview
+      </a>
+      <a href="guide.html" class="nav-tab active">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        User Guide
+      </a>
+      <a href="https://github.com/Thundercloud12/gruntdeck" target="_blank" class="btn btn-secondary btn-xs">
+        <svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        GitHub
+      </a>
+    </nav>
+  </header>
+
+  <!-- User Guide Layout -->
+  <main class="guide-main-layout">
+
+    <!-- Sidebar Navigation -->
+    <aside class="guide-sidebar">
+      <div class="guide-sidebar-group">
+        <div class="guide-sidebar-title">Getting Started</div>
+        <a href="#quickstart" class="guide-sidebar-link active">1. Quickstart</a>
+        <a href="#config" class="guide-sidebar-link">2. Configuration</a>
+      </div>
+
+      <div class="guide-sidebar-group">
+        <div class="guide-sidebar-title">Core Concepts</div>
+        <a href="#projects" class="guide-sidebar-link">3. Projects Workspace</a>
+        <a href="#inventory" class="guide-sidebar-link">4. Target Inventory & SSH</a>
+        <a href="#jobs" class="guide-sidebar-link">5. Jobs & Show View</a>
+        <a href="#follow-modes" class="guide-sidebar-link">6. Follow Execution Modes</a>
+      </div>
+
+      <div class="guide-sidebar-group">
+        <div class="guide-sidebar-title">Security & API</div>
+        <a href="#key-vault" class="guide-sidebar-link">7. Key Storage Vault</a>
+        <a href="#cron" class="guide-sidebar-link">8. Cron Schedules</a>
+        <a href="#api" class="guide-sidebar-link">9. REST API Reference</a>
+      </div>
+    </aside>
+
+    <!-- Guide Content -->
+    <div class="guide-content-area">
+
+      <!-- 1. Quickstart -->
+      <section id="quickstart">
+        <h1>Getting Started with Gruntdeck</h1>
+        <p>Gruntdeck is a lightweight, clean-room reimplementation of Rundeck built in Go and powered by PostgreSQL and River Task Queue.</p>
+
+        <h2>1-Minute Launch via Docker</h2>
+        <div class="guide-code-box">git clone https://github.com/Thundercloud12/gruntdeck.git
+cd gruntdeck
+docker compose up -d</div>
+        <p>Open <code>http://localhost:8080</code> in your browser and sign in with credentials <code>admin</code> / <code>adminpassword</code>.</p>
+      </section>
+
+      <!-- 2. Configuration -->
+      <section id="config">
+        <h2>Environment Configuration</h2>
+        <p>Gruntdeck accepts the following environment variables or <code>.env</code> file configuration:</p>
+        <div class="guide-code-box">DATABASE_URL=postgres://gruntdeck:password@localhost:5432/gruntdeck?sslmode=disable
+GRUNTDECK_MASTER_KEY=01234567890123456789012345678901
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=adminpassword
+PORT=8080</div>
+      </section>
+
+      <!-- 3. Projects Workspace -->
+      <section id="projects">
+        <h2>Multi-Project Workspaces</h2>
+        <p>All target nodes, jobs, cron schedules, and execution logs are isolated by Project ID. Use the header <strong>Project</strong> selector to switch active workspaces.</p>
+      </section>
+
+      <!-- 4. Target Inventory & SSH -->
+      <section id="inventory">
+        <h2>Target Node Inventory & SSH Trust</h2>
+        <p>Add remote servers with IP, user, SSH key reference, and target tags (e.g. <code>web-server</code>, <code>production</code>).</p>
+        
+        <h3>Trusting Target SSH Fingerprints</h3>
+        <div class="guide-code-box">./gruntdeck trust 192.168.1.100</div>
+      </section>
+
+      <!-- 5. Jobs & Show View -->
+      <section id="jobs">
+        <h2>Job Details & Show View</h2>
+        <p>Clicking any job opens the <strong>Job Show View</strong> featuring Rundeck-style inspection panels:</p>
+        <ul>
+          <li><strong>Stats Sub-Tab</strong>: Total runs, success percentage, and average runtime duration.</li>
+          <li><strong>Activity Sub-Tab</strong>: Filtered execution history list for the selected job.</li>
+        </ul>
+      </section>
+
+      <!-- 6. Follow Execution Modes -->
+      <section id="follow-modes">
+        <h2>Follow Execution Modes</h2>
+        <p>Switch log output perspectives during live job runs using the <strong>Follow execution</strong> dropdown:</p>
+        <ul>
+          <li><span class="badge badge-mono">Nodes</span>: Accordion cards grouping log entries by server IP.</li>
+          <li><span class="badge badge-mono">Log Output</span>: Raw monospaced terminal output stream.</li>
+          <li><span class="badge badge-mono">HTML</span>: Rendered HTML iframe for formatted report output.</li>
+        </ul>
+      </section>
+
+      <!-- 7. Key Storage Vault -->
+      <section id="key-vault">
+        <h2>Key Storage Vault</h2>
+        <p>SSH private keys, remote passwords, and API tokens are encrypted at rest using <strong>AES-256-GCM</strong> encryption.</p>
+      </section>
+
+      <!-- 8. Cron Schedules -->
+      <section id="cron">
+        <h2>Cron Schedules</h2>
+        <p>Automate recurring task pipelines with cron rules (e.g. <code>0 0 2 * * *</code>) and custom timezone support.</p>
+      </section>
+
+      <!-- 9. REST API Reference -->
+      <section id="api">
+        <h2>REST API Reference</h2>
+        <p>Trigger job runs programmatically via REST API:</p>
+        <div class="guide-code-box"># Trigger Job Execution
+curl -X POST http://localhost:8080/api/v1/jobs/health-check/run \
+  -H "Content-Type: application/json" \
+  -d '{"options": {"environment": "production"}}'</div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="app-footer">
+    <p>Gruntdeck v1.0 · Distributed Automation Engine in Go</p>
+  </footer>
+
+</body>
+</html>

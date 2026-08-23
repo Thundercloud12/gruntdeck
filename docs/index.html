@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gruntdeck — Distributed Automation Engine</title>
+  <meta name="description" content="Clean-room Rundeck alternative built in Go. Multi-tenant workspaces, real-time node log streaming, AES-256 key vault, and River queue orchestration.">
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <!-- App Header - Mission Control Wall -->
+  <header class="app-header">
+    <a href="index.html" class="logo-container">
+      <svg class="icon logo-mark" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="12" cy="12" r="4" fill="currentColor" stroke="none"/></svg>
+      <span>Gruntdeck</span>
+      <span class="version-badge">v1.0 · RIVER</span>
+    </a>
+
+    <nav class="nav-tabs">
+      <a href="index.html" class="nav-tab active">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+        Overview
+      </a>
+      <a href="guide.html" class="nav-tab">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        User Guide
+      </a>
+      <a href="https://github.com/Thundercloud12/gruntdeck" target="_blank" class="btn btn-secondary btn-xs">
+        <svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        GitHub
+      </a>
+    </nav>
+
+    <div class="header-status">
+      <span class="status-dot"></span>
+      <span class="version-badge">ONLINE</span>
+    </div>
+  </header>
+
+  <!-- Pinned Telemetry Strip -->
+  <div class="telemetry-strip">
+    <div class="telemetry-block">
+      <span class="telemetry-label">Fleet Engine</span>
+      <span class="telemetry-value">River/Go</span>
+    </div>
+    <div class="telemetry-divider"></div>
+    <div class="telemetry-block">
+      <span class="telemetry-label">Storage</span>
+      <span class="telemetry-value">PostgreSQL 15</span>
+    </div>
+    <div class="telemetry-divider"></div>
+    <div class="telemetry-block">
+      <span class="telemetry-label">Security</span>
+      <span class="telemetry-value">AES-256-GCM</span>
+    </div>
+  </div>
+
+  <!-- Hero Section -->
+  <main>
+    <section class="hero-container">
+      <div class="hero-pill-badge">
+        <span>RELEASE CANDIDATE v1.0.0</span>
+      </div>
+      <h1 class="hero-heading">
+        Distributed Automation Engine for <span>Fleet Operations</span>
+      </h1>
+      <p class="hero-subtext">
+        Performant, clean-room Rundeck alternative built in Go. Orchestrate multi-step SSH workflows across remote target nodes with multi-project namespaces, real-time log follow modes, and encrypted key vaults.
+      </p>
+
+      <div class="hero-actions">
+        <a href="guide.html" class="btn btn-primary">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+          Read User Guide
+        </a>
+        <a href="#quickstart" class="btn btn-secondary">
+          <svg class="icon" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          Quickstart (1 Min)
+        </a>
+      </div>
+
+      <!-- Instrument Terminal Window -->
+      <div class="terminal-window">
+        <div class="terminal-toolbar">
+          <span class="terminal-dot red"></span>
+          <span class="terminal-dot yellow"></span>
+          <span class="terminal-dot green"></span>
+          <span class="terminal-title-text">gruntdeck-engine — bash</span>
+        </div>
+        <div class="terminal-console-body">
+          <span style="color: #e7ebf1;">$ docker compose up -d</span><br>
+          <span style="color: #34d399;">[+] Running 3/3</span><br>
+          <span style="color: #34d399;"> ✔ Container gruntdeck-db        Healthy</span><br>
+          <span style="color: #34d399;"> ✔ Container gruntdeck-server    Running (http://localhost:8080)</span><br>
+          <span style="color: #34d399;"> ✔ Container gruntdeck-executor  Active (River Worker Daemon)</span><br><br>
+          <span style="color: #f5a623;">2026/08/23 10:30:00 🌐 Gruntdeck Web Dashboard active on http://localhost:8080</span><br>
+          <span>[LOG] [web-01.prod] Step 1/2: Pulling Docker Container Image... OK</span><br>
+          <span>[LOG] [web-02.prod] Step 2/2: Restarting System Service Nginx... OK</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Key Features Grid -->
+    <section id="features" class="features-container">
+      <div class="section-header-box">
+        <h2>Mission Control Architecture</h2>
+        <p>Decoupled worker architecture powered by Go, PostgreSQL, and River task queue.</p>
+      </div>
+
+      <div class="features-grid-layout">
+        <div class="card-box">
+          <div class="card-box-header">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>
+            <h3>Multi-Project Workspaces</h3>
+          </div>
+          <p>Isolate target nodes, jobs, cron schedules, and execution logs inside distinct namespace projects.</p>
+        </div>
+
+        <div class="card-box">
+          <div class="card-box-header">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            <h3>Follow Execution Modes</h3>
+          </div>
+          <p>Inspect log streams in <strong>Nodes</strong> accordion cards (grouped by server IP), <strong>Log Output</strong> terminal stream, or <strong>HTML</strong> sandboxed frames.</p>
+        </div>
+
+        <div class="card-box">
+          <div class="card-box-header">
+            <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <h3>AES-256 Key Vault</h3>
+          </div>
+          <p>Encrypt SSH keys, remote passwords, and API tokens at rest with authenticated AES-256-GCM encryption.</p>
+        </div>
+
+        <div class="card-box">
+          <div class="card-box-header">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+            <h3>Decoupled Worker Queue</h3>
+          </div>
+          <p>Scale background task worker daemons independently of the web API layer using River Task Queue.</p>
+        </div>
+
+        <div class="card-box">
+          <div class="card-box-header">
+            <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <h3>Timezone-Aware Cron</h3>
+          </div>
+          <p>Automate recurring execution runs with full cron expression and timezone configuration.</p>
+        </div>
+
+        <div class="card-box">
+          <div class="card-box-header">
+            <svg class="icon" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            <h3>SSH Target Inventory</h3>
+          </div>
+          <p>Manage infrastructure nodes with tag filters and OpenSSH fingerprint verification.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Quickstart Box -->
+    <section id="quickstart" class="quickstart-box">
+      <div class="quickstart-header-tabs">
+        <button class="qs-tab-btn active" onclick="switchTab(this, 'qs-docker')">Docker Compose</button>
+        <button class="qs-tab-btn" onclick="switchTab(this, 'qs-binary')">Standalone Binary</button>
+        <button class="qs-tab-btn" onclick="switchTab(this, 'qs-cli')">CLI Trust</button>
+      </div>
+
+      <div id="qs-docker" class="qs-tab-panel active">
+        <pre><code># 1. Clone repository
+git clone https://github.com/Thundercloud12/gruntdeck.git
+cd gruntdeck
+
+# 2. Launch production stack
+docker compose up -d
+
+# 3. Access web dashboard at http://localhost:8080 (admin / adminpassword)</code></pre>
+      </div>
+
+      <div id="qs-binary" class="qs-tab-panel">
+        <pre><code># 1. Set environment variables
+export DATABASE_URL="postgres://postgres:postgres@localhost:5432/gruntdeck?sslmode=disable"
+export GRUNTDECK_MASTER_KEY="01234567890123456789012345678901"
+
+# 2. Launch server & worker daemon
+./server &
+./executor &</code></pre>
+      </div>
+
+      <div id="qs-cli" class="qs-tab-panel">
+        <pre><code># Trust target node SSH fingerprint
+./gruntdeck trust 192.168.1.100
+
+# Run ad-hoc job execution
+./producer system-health-check</code></pre>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer class="app-footer">
+    <p>Gruntdeck v1.0 · Distributed Automation Engine in Go</p>
+    <p style="margin-top: 0.25rem;">Clean-Room Rundeck Alternative · MIT License</p>
+  </footer>
+
+  <script>
+    function switchTab(btn, tabId) {
+      document.querySelectorAll('.qs-tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.qs-tab-panel').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById(tabId).classList.add('active');
+    }
+  </script>
+</body>
+</html>

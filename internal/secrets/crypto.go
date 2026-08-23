@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 )
 
@@ -18,7 +19,7 @@ type Service struct {
 func NewService() *Service {
 	masterKey := os.Getenv("GRUNTDECK_MASTER_KEY")
 	if masterKey == "" {
-		masterKey = "gruntdeck-default-dev-master-key-change-me"
+		log.Fatal("GRUNTDECK_MASTER_KEY environment variable is required (used to encrypt stored credentials)")
 	}
 	hash := sha256.Sum256([]byte(masterKey))
 	return &Service{

@@ -52,6 +52,7 @@ func main() {
 		log.Fatalf("Failed to create producer: %v", err)
 	}
 
+	projectRepo := repository.NewPostgresProjectRepository(pool)
 	jobRepo := repository.NewPostgresJobRepository(pool)
 	execRepo := repository.NewPostgresExecutionRepository(pool)
 	logRepo := repository.NewPostgresLogRepository(pool)
@@ -68,7 +69,7 @@ func main() {
 	}
 	defer schedService.Stop()
 
-	apiServer := api.NewServer(producer, jobRepo, execRepo, logRepo, invRepo, schedRepo, credRepo, userRepo, sessionRepo, schedService, secSvc)
+	apiServer := api.NewServer(producer, projectRepo, jobRepo, execRepo, logRepo, invRepo, schedRepo, credRepo, userRepo, sessionRepo, schedService, secSvc)
 
 	mux := http.NewServeMux()
 	mux.Handle("/api/", apiServer.Routes())

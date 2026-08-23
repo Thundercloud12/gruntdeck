@@ -37,7 +37,7 @@ func NewService(repo repository.ScheduleRepository, producer *queue.Producer) *S
 func (s *Service) Start(ctx context.Context) error {
 	s.cron.Start()
 
-	schedules, err := s.repo.ListSchedules(ctx)
+	schedules, err := s.repo.ListSchedules(ctx, "")
 	if err != nil {
 		return fmt.Errorf("failed to load schedules: %w", err)
 	}

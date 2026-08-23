@@ -5,8 +5,17 @@ import (
 	"time"
 )
 
+type Project struct {
+	ID          string    `json:"id"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
 type Target struct {
 	ID           string   `json:"id"`
+	ProjectID    string   `json:"project_id"`
 	Host         string   `json:"host"`
 	Port         string   `json:"port"`
 	User         string   `json:"user"`
@@ -55,6 +64,7 @@ type JobOption struct {
 
 type Job struct {
 	ID           string      `json:"id"`
+	ProjectID    string      `json:"project_id"`
 	Name         string      `json:"name"`
 	TargetFilter []string    `json:"target_filter"`
 	Steps        []JobStep   `json:"steps"`
@@ -71,6 +81,7 @@ type JobStep struct {
 
 type Execution struct {
 	ID               string            `json:"id"`
+	ProjectID        string            `json:"project_id"`
 	JobID            string            `json:"job_id"`
 	Status           string            `json:"status"`
 	Options          map[string]string `json:"options"`
@@ -93,6 +104,7 @@ type LogEntry struct {
 
 type Schedule struct {
 	ID             string            `json:"id"`
+	ProjectID      string            `json:"project_id"`
 	JobID          string            `json:"job_id"`
 	CronExpression string            `json:"cron_expression"`
 	Timezone       string            `json:"timezone"`

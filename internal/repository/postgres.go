@@ -12,6 +12,7 @@ import (
 )
 
 // Ensure implementation of repository interfaces at compile-time
+var _ ProjectRepository = (*PostgresProjectRepository)(nil)
 var _ InventoryRepository = (*PostgresInventoryRepository)(nil)
 var _ JobRepository = (*PostgresJobRepository)(nil)
 var _ ExecutionRepository = (*PostgresExecutionRepository)(nil)
@@ -20,6 +21,88 @@ var _ ScheduleRepository = (*PostgresScheduleRepository)(nil)
 var _ CredentialRepository = (*PostgresCredentialRepository)(nil)
 var _ UserRepository = (*PostgresUserRepository)(nil)
 var _ SessionRepository = (*PostgresSessionRepository)(nil)
+
+// ==========================================
+// ProjectRepository Implementation
+// ==========================================
+
+type PostgresProjectRepository struct {
+	pool *pgxpool.Pool
+}
+
+func NewPostgresProjectRepository(pool *pgxpool.Pool) *PostgresProjectRepository {
+	return &PostgresProjectRepository{pool: pool}
+}
+
+func (r *PostgresProjectRepository) CreateProject(ctx context.Context, project models.Project) error {
+	query := `
+		INSERT INTO projects (id, name, description, created_at, updated_at)
+		VALUES ($1, $2, $3, NOW(), NOW())
+		ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, description = EXCLUDED.description, updated_at = NOW()
+	`
+	_, err := r.pool.Exec(ctx, query, project.ID, project.Name, project.Description)
+	if err != nil {
+		return fmt.Errorf("failed to create project: %w", err)
+	}
+	return nil
+}
+
+func (r *PostgresProjectRepository) GetProjectByID(ctx context.Context, id string) (*models.Project, error) {
+	query := `
+		SELECT id, name, COALESCE(description, ''), created_at, updated_at
+		FROM projects
+		WHERE id = $1
+	`
+	row := r.pool.QueryRow(ctx, query, id)
+
+	var p models.Project
+	if err := row.Scan(&p.ID, &p.Name, &p.Description, &p.CreatedAt, &p.UpdatedAt); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, fmt.Errorf("project not found: %s", id)
+		}
+		return nil, fmt.Errorf("failed to scan project: %w", err)
+	}
+
+	return &p, nil
+}
+
+func (r *PostgresProjectRepository) ListProjects(ctx context.Context) ([]models.Project, error) {
+	query := `
+		SELECT id, name, COALESCE(description, ''), created_at, updated_at
+		FROM projects
+		ORDER BY created_at ASC
+	`
+	rows, err := r.pool.Query(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list projects: %w", err)
+	}
+	defer rows.Close()
+
+	var projects []models.Project
+	for rows.Next() {
+		var p models.Project
+		if err := rows.Scan(&p.ID, &p.Name, &p.Description, &p.CreatedAt, &p.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("failed to scan project row: %w", err)
+		}
+		projects = append(projects, p)
+	}
+	return projects, rows.Err()
+}
+
+func (r *PostgresProjectRepository) DeleteProject(ctx context.Context, id string) error {
+	if id == "default" {
+		return fmt.Errorf("cannot delete default project")
+	}
+	query := `DELETE FROM projects WHERE id = $1`
+	tag, err := r.pool.Exec(ctx, query, id)
+	if err != nil {
+		return fmt.Errorf("failed to delete project: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("project not found: %s", id)
+	}
+	return nil
+}
 
 // ==========================================
 // InventoryRepository Implementation
@@ -35,11 +118,11 @@ func NewPostgresInventoryRepository(pool *pgxpool.Pool) *PostgresInventoryReposi
 
 func (r *PostgresInventoryRepository) GetTargetByTags(ctx context.Context, tags []string) ([]models.Target, error) {
 	if len(tags) == 0 {
-		return r.ListTargets(ctx)
+		return r.ListTargets(ctx, "")
 	}
 
 	query := `
-		SELECT id, host, port, "user", key_path, COALESCE(credential_id, ''), tags
+		SELECT id, COALESCE(project_id, 'default'), host, port, "user", key_path, COALESCE(credential_id, ''), tags
 		FROM targets
 		WHERE tags @> $1
 	`
@@ -52,7 +135,7 @@ func (r *PostgresInventoryRepository) GetTargetByTags(ctx context.Context, tags 
 	var targets []models.Target
 	for rows.Next() {
 		var t models.Target
-		if err := rows.Scan(&t.ID, &t.Host, &t.Port, &t.User, &t.KeyPath, &t.CredentialID, &t.Tags); err != nil {
+		if err := rows.Scan(&t.ID, &t.ProjectID, &t.Host, &t.Port, &t.User, &t.KeyPath, &t.CredentialID, &t.Tags); err != nil {
 			return nil, fmt.Errorf("failed to scan target row: %w", err)
 		}
 		targets = append(targets, t)
@@ -62,14 +145,14 @@ func (r *PostgresInventoryRepository) GetTargetByTags(ctx context.Context, tags 
 
 func (r *PostgresInventoryRepository) GetTargetByID(ctx context.Context, id string) (*models.Target, error) {
 	query := `
-		SELECT id, host, port, "user", key_path, COALESCE(credential_id, ''), tags
+		SELECT id, COALESCE(project_id, 'default'), host, port, "user", key_path, COALESCE(credential_id, ''), tags
 		FROM targets
 		WHERE id = $1
 	`
 	row := r.pool.QueryRow(ctx, query, id)
 
 	var t models.Target
-	if err := row.Scan(&t.ID, &t.Host, &t.Port, &t.User, &t.KeyPath, &t.CredentialID, &t.Tags); err != nil {
+	if err := row.Scan(&t.ID, &t.ProjectID, &t.Host, &t.Port, &t.User, &t.KeyPath, &t.CredentialID, &t.Tags); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, fmt.Errorf("target not found: %s", id)
 		}
@@ -79,12 +162,23 @@ func (r *PostgresInventoryRepository) GetTargetByID(ctx context.Context, id stri
 	return &t, nil
 }
 
-func (r *PostgresInventoryRepository) ListTargets(ctx context.Context) ([]models.Target, error) {
-	query := `
-		SELECT id, host, port, "user", key_path, COALESCE(credential_id, ''), tags
-		FROM targets
-	`
-	rows, err := r.pool.Query(ctx, query)
+func (r *PostgresInventoryRepository) ListTargets(ctx context.Context, projectID string) ([]models.Target, error) {
+	var query string
+	var args []any
+	if projectID != "" {
+		query = `
+			SELECT id, COALESCE(project_id, 'default'), host, port, "user", key_path, COALESCE(credential_id, ''), tags
+			FROM targets
+			WHERE project_id = $1
+		`
+		args = append(args, projectID)
+	} else {
+		query = `
+			SELECT id, COALESCE(project_id, 'default'), host, port, "user", key_path, COALESCE(credential_id, ''), tags
+			FROM targets
+		`
+	}
+	rows, err := r.pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list targets: %w", err)
 	}
@@ -93,7 +187,7 @@ func (r *PostgresInventoryRepository) ListTargets(ctx context.Context) ([]models
 	var targets []models.Target
 	for rows.Next() {
 		var t models.Target
-		if err := rows.Scan(&t.ID, &t.Host, &t.Port, &t.User, &t.KeyPath, &t.CredentialID, &t.Tags); err != nil {
+		if err := rows.Scan(&t.ID, &t.ProjectID, &t.Host, &t.Port, &t.User, &t.KeyPath, &t.CredentialID, &t.Tags); err != nil {
 			return nil, fmt.Errorf("failed to scan target row: %w", err)
 		}
 		targets = append(targets, t)
@@ -102,11 +196,14 @@ func (r *PostgresInventoryRepository) ListTargets(ctx context.Context) ([]models
 }
 
 func (r *PostgresInventoryRepository) AddTarget(ctx context.Context, target models.Target) error {
+	if target.ProjectID == "" {
+		target.ProjectID = "default"
+	}
 	query := `
-		INSERT INTO targets (id, host, port, "user", key_path, credential_id, tags)
-		VALUES ($1, $2, $3, $4, $5, NULLIF($6, ''), $7)
+		INSERT INTO targets (id, project_id, host, port, "user", key_path, credential_id, tags)
+		VALUES ($1, $2, $3, $4, $5, $6, NULLIF($7, ''), $8)
 	`
-	_, err := r.pool.Exec(ctx, query, target.ID, target.Host, target.Port, target.User, target.KeyPath, target.CredentialID, target.Tags)
+	_, err := r.pool.Exec(ctx, query, target.ID, target.ProjectID, target.Host, target.Port, target.User, target.KeyPath, target.CredentialID, target.Tags)
 	if err != nil {
 		return fmt.Errorf("failed to add target: %w", err)
 	}
@@ -114,12 +211,15 @@ func (r *PostgresInventoryRepository) AddTarget(ctx context.Context, target mode
 }
 
 func (r *PostgresInventoryRepository) UpdateTarget(ctx context.Context, target models.Target) error {
+	if target.ProjectID == "" {
+		target.ProjectID = "default"
+	}
 	query := `
 		UPDATE targets
-		SET host = $2, port = $3, "user" = $4, key_path = $5, credential_id = NULLIF($6, ''), tags = $7
+		SET project_id = $2, host = $3, port = $4, "user" = $5, key_path = $6, credential_id = NULLIF($7, ''), tags = $8
 		WHERE id = $1
 	`
-	tag, err := r.pool.Exec(ctx, query, target.ID, target.Host, target.Port, target.User, target.KeyPath, target.CredentialID, target.Tags)
+	tag, err := r.pool.Exec(ctx, query, target.ID, target.ProjectID, target.Host, target.Port, target.User, target.KeyPath, target.CredentialID, target.Tags)
 	if err != nil {
 		return fmt.Errorf("failed to update target: %w", err)
 	}
@@ -155,14 +255,14 @@ func NewPostgresJobRepository(pool *pgxpool.Pool) *PostgresJobRepository {
 
 func (r *PostgresJobRepository) GetJobByID(ctx context.Context, jobID string) (*models.Job, error) {
 	query := `
-		SELECT id, name, target_filter
+		SELECT id, COALESCE(project_id, 'default'), name, target_filter
 		FROM jobs
 		WHERE id = $1
 	`
 	row := r.pool.QueryRow(ctx, query, jobID)
 
 	var job models.Job
-	if err := row.Scan(&job.ID, &job.Name, &job.TargetFilter); err != nil {
+	if err := row.Scan(&job.ID, &job.ProjectID, &job.Name, &job.TargetFilter); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, fmt.Errorf("job not found: %s", jobID)
 		}
@@ -208,12 +308,24 @@ func (r *PostgresJobRepository) GetJobByID(ctx context.Context, jobID string) (*
 	return &job, rows.Err()
 }
 
-func (r *PostgresJobRepository) ListJobs(ctx context.Context) ([]models.Job, error) {
-	query := `
-		SELECT id, name, target_filter
-		FROM jobs
-	`
-	rows, err := r.pool.Query(ctx, query)
+func (r *PostgresJobRepository) ListJobs(ctx context.Context, projectID string) ([]models.Job, error) {
+	var query string
+	var args []any
+	if projectID != "" {
+		query = `
+			SELECT id, COALESCE(project_id, 'default'), name, target_filter
+			FROM jobs
+			WHERE project_id = $1
+		`
+		args = append(args, projectID)
+	} else {
+		query = `
+			SELECT id, COALESCE(project_id, 'default'), name, target_filter
+			FROM jobs
+		`
+	}
+
+	rows, err := r.pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list jobs: %w", err)
 	}
@@ -222,7 +334,7 @@ func (r *PostgresJobRepository) ListJobs(ctx context.Context) ([]models.Job, err
 	var jobs []models.Job
 	for rows.Next() {
 		var job models.Job
-		if err := rows.Scan(&job.ID, &job.Name, &job.TargetFilter); err != nil {
+		if err := rows.Scan(&job.ID, &job.ProjectID, &job.Name, &job.TargetFilter); err != nil {
 			return nil, fmt.Errorf("failed to scan job row: %w", err)
 		}
 		jobs = append(jobs, job)
@@ -267,6 +379,9 @@ func (r *PostgresJobRepository) ListJobs(ctx context.Context) ([]models.Job, err
 }
 
 func (r *PostgresJobRepository) AddJob(ctx context.Context, job models.Job) error {
+	if job.ProjectID == "" {
+		job.ProjectID = "default"
+	}
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to start transaction: %w", err)
@@ -274,10 +389,10 @@ func (r *PostgresJobRepository) AddJob(ctx context.Context, job models.Job) erro
 	defer tx.Rollback(ctx)
 
 	jobQuery := `
-		INSERT INTO jobs (id, name, target_filter)
-		VALUES ($1, $2, $3)
+		INSERT INTO jobs (id, project_id, name, target_filter)
+		VALUES ($1, $2, $3, $4)
 	`
-	_, err = tx.Exec(ctx, jobQuery, job.ID, job.Name, job.TargetFilter)
+	_, err = tx.Exec(ctx, jobQuery, job.ID, job.ProjectID, job.Name, job.TargetFilter)
 	if err != nil {
 		return fmt.Errorf("failed to insert job: %w", err)
 	}
@@ -311,6 +426,9 @@ func (r *PostgresJobRepository) AddJob(ctx context.Context, job models.Job) erro
 }
 
 func (r *PostgresJobRepository) UpdateJob(ctx context.Context, job models.Job) error {
+	if job.ProjectID == "" {
+		job.ProjectID = "default"
+	}
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to start transaction: %w", err)
@@ -319,10 +437,10 @@ func (r *PostgresJobRepository) UpdateJob(ctx context.Context, job models.Job) e
 
 	jobQuery := `
 		UPDATE jobs
-		SET name = $2, target_filter = $3
+		SET project_id = $2, name = $3, target_filter = $4
 		WHERE id = $1
 	`
-	tag, err := tx.Exec(ctx, jobQuery, job.ID, job.Name, job.TargetFilter)
+	tag, err := tx.Exec(ctx, jobQuery, job.ID, job.ProjectID, job.Name, job.TargetFilter)
 	if err != nil {
 		return fmt.Errorf("failed to update job: %w", err)
 	}
@@ -408,18 +526,21 @@ func NewPostgresExecutionRepository(pool *pgxpool.Pool) *PostgresExecutionReposi
 }
 
 func (r *PostgresExecutionRepository) CreateExecution(ctx context.Context, execution models.Execution) error {
+	if execution.ProjectID == "" {
+		execution.ProjectID = "default"
+	}
 	optionsJSON, err := json.Marshal(execution.Options)
 	if err != nil {
 		optionsJSON = []byte("{}")
 	}
 
 	query := `
-		INSERT INTO executions (id, job_id, status, options, started_at, ended_at, targets_total, targets_succeeded, targets_failed)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		INSERT INTO executions (id, project_id, job_id, status, options, started_at, ended_at, targets_total, targets_succeeded, targets_failed)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 	`
 	_, err = r.pool.Exec(
 		ctx, query,
-		execution.ID, execution.JobID, execution.Status, optionsJSON,
+		execution.ID, execution.ProjectID, execution.JobID, execution.Status, optionsJSON,
 		execution.StartedAt, execution.EndedAt,
 		execution.TargetsTotal, execution.TargetsSucceeded, execution.TargetsFailed,
 	)
@@ -431,7 +552,7 @@ func (r *PostgresExecutionRepository) CreateExecution(ctx context.Context, execu
 
 func (r *PostgresExecutionRepository) GetExecutionByID(ctx context.Context, id string) (*models.Execution, error) {
 	query := `
-		SELECT id, job_id, status, options, started_at, ended_at, targets_total, targets_succeeded, targets_failed
+		SELECT id, COALESCE(project_id, 'default'), job_id, status, options, started_at, ended_at, targets_total, targets_succeeded, targets_failed
 		FROM executions
 		WHERE id = $1
 	`
@@ -441,7 +562,7 @@ func (r *PostgresExecutionRepository) GetExecutionByID(ctx context.Context, id s
 	var optionsRaw []byte
 
 	err := row.Scan(
-		&exec.ID, &exec.JobID, &exec.Status, &optionsRaw,
+		&exec.ID, &exec.ProjectID, &exec.JobID, &exec.Status, &optionsRaw,
 		&exec.StartedAt, &exec.EndedAt,
 		&exec.TargetsTotal, &exec.TargetsSucceeded, &exec.TargetsFailed,
 	)
@@ -462,13 +583,25 @@ func (r *PostgresExecutionRepository) GetExecutionByID(ctx context.Context, id s
 	return &exec, nil
 }
 
-func (r *PostgresExecutionRepository) ListExecutions(ctx context.Context) ([]models.Execution, error) {
-	query := `
-		SELECT id, job_id, status, options, started_at, ended_at, targets_total, targets_succeeded, targets_failed
-		FROM executions
-		ORDER BY started_at DESC
-	`
-	rows, err := r.pool.Query(ctx, query)
+func (r *PostgresExecutionRepository) ListExecutions(ctx context.Context, projectID string) ([]models.Execution, error) {
+	var query string
+	var args []any
+	if projectID != "" {
+		query = `
+			SELECT id, COALESCE(project_id, 'default'), job_id, status, options, started_at, ended_at, targets_total, targets_succeeded, targets_failed
+			FROM executions
+			WHERE project_id = $1
+			ORDER BY started_at DESC
+		`
+		args = append(args, projectID)
+	} else {
+		query = `
+			SELECT id, COALESCE(project_id, 'default'), job_id, status, options, started_at, ended_at, targets_total, targets_succeeded, targets_failed
+			FROM executions
+			ORDER BY started_at DESC
+		`
+	}
+	rows, err := r.pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list executions: %w", err)
 	}
@@ -480,7 +613,7 @@ func (r *PostgresExecutionRepository) ListExecutions(ctx context.Context) ([]mod
 		var optionsRaw []byte
 
 		err := rows.Scan(
-			&exec.ID, &exec.JobID, &exec.Status, &optionsRaw,
+			&exec.ID, &exec.ProjectID, &exec.JobID, &exec.Status, &optionsRaw,
 			&exec.StartedAt, &exec.EndedAt,
 			&exec.TargetsTotal, &exec.TargetsSucceeded, &exec.TargetsFailed,
 		)
@@ -589,18 +722,21 @@ func NewPostgresScheduleRepository(pool *pgxpool.Pool) *PostgresScheduleReposito
 }
 
 func (r *PostgresScheduleRepository) CreateSchedule(ctx context.Context, schedule models.Schedule) error {
+	if schedule.ProjectID == "" {
+		schedule.ProjectID = "default"
+	}
 	optionsJSON, err := json.Marshal(schedule.Options)
 	if err != nil {
 		optionsJSON = []byte("{}")
 	}
 
 	query := `
-		INSERT INTO schedules (id, job_id, cron_expression, timezone, enabled, options, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+		INSERT INTO schedules (id, project_id, job_id, cron_expression, timezone, enabled, options, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
 	`
 	_, err = r.pool.Exec(
 		ctx, query,
-		schedule.ID, schedule.JobID, schedule.CronExpression,
+		schedule.ID, schedule.ProjectID, schedule.JobID, schedule.CronExpression,
 		schedule.Timezone, schedule.Enabled, optionsJSON,
 	)
 	if err != nil {
@@ -611,7 +747,7 @@ func (r *PostgresScheduleRepository) CreateSchedule(ctx context.Context, schedul
 
 func (r *PostgresScheduleRepository) GetScheduleByID(ctx context.Context, id string) (*models.Schedule, error) {
 	query := `
-		SELECT id, job_id, cron_expression, timezone, enabled, options, created_at, updated_at
+		SELECT id, COALESCE(project_id, 'default'), job_id, cron_expression, timezone, enabled, options, created_at, updated_at
 		FROM schedules
 		WHERE id = $1
 	`
@@ -621,7 +757,7 @@ func (r *PostgresScheduleRepository) GetScheduleByID(ctx context.Context, id str
 	var optionsRaw []byte
 
 	err := row.Scan(
-		&s.ID, &s.JobID, &s.CronExpression,
+		&s.ID, &s.ProjectID, &s.JobID, &s.CronExpression,
 		&s.Timezone, &s.Enabled, &optionsRaw,
 		&s.CreatedAt, &s.UpdatedAt,
 	)
@@ -642,13 +778,25 @@ func (r *PostgresScheduleRepository) GetScheduleByID(ctx context.Context, id str
 	return &s, nil
 }
 
-func (r *PostgresScheduleRepository) ListSchedules(ctx context.Context) ([]models.Schedule, error) {
-	query := `
-		SELECT id, job_id, cron_expression, timezone, enabled, options, created_at, updated_at
-		FROM schedules
-		ORDER BY created_at DESC
-	`
-	rows, err := r.pool.Query(ctx, query)
+func (r *PostgresScheduleRepository) ListSchedules(ctx context.Context, projectID string) ([]models.Schedule, error) {
+	var query string
+	var args []any
+	if projectID != "" {
+		query = `
+			SELECT id, COALESCE(project_id, 'default'), job_id, cron_expression, timezone, enabled, options, created_at, updated_at
+			FROM schedules
+			WHERE project_id = $1
+			ORDER BY created_at DESC
+		`
+		args = append(args, projectID)
+	} else {
+		query = `
+			SELECT id, COALESCE(project_id, 'default'), job_id, cron_expression, timezone, enabled, options, created_at, updated_at
+			FROM schedules
+			ORDER BY created_at DESC
+		`
+	}
+	rows, err := r.pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list schedules: %w", err)
 	}
@@ -660,7 +808,7 @@ func (r *PostgresScheduleRepository) ListSchedules(ctx context.Context) ([]model
 		var optionsRaw []byte
 
 		err := rows.Scan(
-			&s.ID, &s.JobID, &s.CronExpression,
+			&s.ID, &s.ProjectID, &s.JobID, &s.CronExpression,
 			&s.Timezone, &s.Enabled, &optionsRaw,
 			&s.CreatedAt, &s.UpdatedAt,
 		)
@@ -680,6 +828,9 @@ func (r *PostgresScheduleRepository) ListSchedules(ctx context.Context) ([]model
 }
 
 func (r *PostgresScheduleRepository) UpdateSchedule(ctx context.Context, schedule models.Schedule) error {
+	if schedule.ProjectID == "" {
+		schedule.ProjectID = "default"
+	}
 	optionsJSON, err := json.Marshal(schedule.Options)
 	if err != nil {
 		optionsJSON = []byte("{}")
@@ -687,12 +838,12 @@ func (r *PostgresScheduleRepository) UpdateSchedule(ctx context.Context, schedul
 
 	query := `
 		UPDATE schedules
-		SET job_id = $2, cron_expression = $3, timezone = $4, enabled = $5, options = $6, updated_at = NOW()
+		SET project_id = $2, job_id = $3, cron_expression = $4, timezone = $5, enabled = $6, options = $7, updated_at = NOW()
 		WHERE id = $1
 	`
 	tag, err := r.pool.Exec(
 		ctx, query,
-		schedule.ID, schedule.JobID, schedule.CronExpression,
+		schedule.ID, schedule.ProjectID, schedule.JobID, schedule.CronExpression,
 		schedule.Timezone, schedule.Enabled, optionsJSON,
 	)
 	if err != nil {
@@ -780,6 +931,22 @@ func (r *PostgresCredentialRepository) ListCredentials(ctx context.Context) ([]m
 		creds = append(creds, c)
 	}
 	return creds, rows.Err()
+}
+
+func (r *PostgresCredentialRepository) UpdateCredential(ctx context.Context, cred models.Credential) error {
+	query := `
+		UPDATE credentials
+		SET name = $2, type = $3, encrypted_data = $4, nonce = $5, updated_at = NOW()
+		WHERE id = $1
+	`
+	tag, err := r.pool.Exec(ctx, query, cred.ID, cred.Name, cred.Type, cred.EncryptedData, cred.Nonce)
+	if err != nil {
+		return fmt.Errorf("failed to update credential: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("credential not found: %s", cred.ID)
+	}
+	return nil
 }
 
 func (r *PostgresCredentialRepository) DeleteCredential(ctx context.Context, id string) error {

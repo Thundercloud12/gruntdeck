@@ -1,0 +1,47 @@
+name: Gruntdeck Automated Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release-binaries:
+    name: Build & Publish Release Assets
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Build Platform Binaries
+        run: |
+          mkdir -p release_assets
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+
+          # Linux amd64
+          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-w -s" -o release_assets/gruntdeck-server-${TAG_NAME}-linux-amd64 ./cmd/server
+          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-w -s" -o release_assets/gruntdeck-executor-${TAG_NAME}-linux-amd64 ./cmd/executor
+
+          # Linux arm64
+          GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-w -s" -o release_assets/gruntdeck-server-${TAG_NAME}-linux-arm64 ./cmd/server
+          GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-w -s" -o release_assets/gruntdeck-executor-${TAG_NAME}-linux-arm64 ./cmd/executor
+
+          # macOS arm64 (Apple Silicon)
+          GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-w -s" -o release_assets/gruntdeck-server-${TAG_NAME}-darwin-arm64 ./cmd/server
+          GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-w -s" -o release_assets/gruntdeck-executor-${TAG_NAME}-darwin-arm64 ./cmd/executor
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release_assets/*
+          draft: false
+          prerelease: false
+          generate_release_notes: true

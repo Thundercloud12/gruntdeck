@@ -1,0 +1,52 @@
+name: Gruntdeck CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: gruntdeck
+          POSTGRES_PASSWORD: gruntdeck_password
+          POSTGRES_DB: gruntdeck_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true
+
+      - name: Verify Dependencies
+        run: go mod verify
+
+      - name: Compile Server Binary
+        run: go build -v ./cmd/server
+
+      - name: Compile Executor Binary
+        run: go build -v ./cmd/executor
+
+      - name: Run Go Tests
+        env:
+          DATABASE_URL: "postgres://gruntdeck:gruntdeck_password@localhost:5432/gruntdeck_test?sslmode=disable"
+          GRUNTDECK_MASTER_KEY: "01234567890123456789012345678901"
+        run: go test -v ./...

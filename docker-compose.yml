@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: gruntdeck-db
+    environment:
+      POSTGRES_USER: gruntdeck
+      POSTGRES_PASSWORD: gruntdeck_secret_password
+      POSTGRES_DB: gruntdeck
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gruntdeck -d gruntdeck"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: gruntdeck-server
+    command: ["/app/server"]
+    ports:
+      - "8080:8080"
+    environment:
+      DATABASE_URL: "postgres://gruntdeck:gruntdeck_secret_password@postgres:5432/gruntdeck?sslmode=disable"
+      GRUNTDECK_MASTER_KEY: "change_this_master_key_to_32_chars_in_prod!"
+      ADMIN_USERNAME: "admin"
+      ADMIN_PASSWORD: "adminpassword"
+      PORT: "8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  executor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: gruntdeck-executor
+    command: ["/app/executor"]
+    environment:
+      DATABASE_URL: "postgres://gruntdeck:gruntdeck_secret_password@postgres:5432/gruntdeck?sslmode=disable"
+      GRUNTDECK_MASTER_KEY: "change_this_master_key_to_32_chars_in_prod!"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

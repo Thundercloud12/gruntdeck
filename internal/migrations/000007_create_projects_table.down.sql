@@ -1,0 +1,6 @@
+ALTER TABLE executions DROP COLUMN IF EXISTS project_id;
+ALTER TABLE schedules DROP COLUMN IF EXISTS project_id;
+ALTER TABLE targets DROP COLUMN IF EXISTS project_id;
+ALTER TABLE jobs DROP COLUMN IF EXISTS project_id;
+
+DROP TABLE IF EXISTS projects;

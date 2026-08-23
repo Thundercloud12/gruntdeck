@@ -7,41 +7,153 @@
   <link rel="stylesheet" href="style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
 <body>
+  <!--
+    THESIS: Every screen is a panel on one mission-control wall; status is
+    inspected live, not clicked into. Refuses the generic card-grid SaaS
+    dashboard.
+    OWN-WORLD: near-black instrument ground, single amber interactive/lamp
+    accent, functional red/green/amber status lamps only, Archivo for UI and
+    labels, JetBrains Mono (tabular) for all data/IDs, a drawn line-icon set
+    (no emoji), sharp instrument-panel corners over soft rounded cards.
+    STORY: an operator glances at the wall, sees fleet health and in-flight
+    executions instantly, and drills into a panel only when something needs
+    attention.
+    FIRST VIEWPORT: header, then a pinned telemetry strip (fleet health tiles
+    + in-flight execution bars) spanning full width, then the active tab's
+    panel below it; the strip never disappears across tabs.
+    FORM: Mission Control Wall — IMPECCABLE'S PICK, locked by the user over
+    the seed-assigned Split-Flap Departure Board; seed key 53368982.
+    FINISH: unreviewed and undocumented is unfinished; this build ends with
+    the finish review, the verdict, DESIGN.md, and every shipping raster
+    carrying its provenance.
+  -->
   <!-- Header -->
   <header class="app-header">
     <div class="logo-container">
-      <span class="logo-icon">⚡</span>
+      <svg class="icon logo-mark" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="12" cy="12" r="4" fill="currentColor" stroke="none"/></svg>
       <span class="logo-title">Gruntdeck</span>
-      <span class="version-badge">v1.0 (River Engine)</span>
+      <span class="version-badge">v1.0 · RIVER</span>
     </div>
+
+    <!-- Project Selector Dropdown -->
+    <div class="project-selector-box">
+      <span class="project-label">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>
+        Project
+      </span>
+      <select id="header-project-select" onchange="onSelectHeaderProject(this.value)" class="project-dropdown">
+        <option value="">(All Projects)</option>
+        <option value="default" selected>Default Project</option>
+      </select>
+    </div>
+
     <nav class="nav-tabs">
-      <button class="nav-tab active" data-tab="jobs-tab">📋 Jobs</button>
-      <button class="nav-tab" data-tab="schedules-tab">⏰ Schedules</button>
-      <button class="nav-tab" data-tab="executions-tab">⏱️ Executions</button>
-      <button class="nav-tab" data-tab="targets-tab">🖥️ Target Nodes</button>
-      <button class="nav-tab" data-tab="credentials-tab">🔑 Key Storage</button>
+      <button class="nav-tab active" data-tab="projects-tab">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>
+        Projects
+      </button>
+      <button class="nav-tab" data-tab="jobs-tab">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M9 6h11"/><path d="M9 12h11"/><path d="M9 18h11"/><path d="M4 6l1 1 2-2"/><path d="M4 12l1 1 2-2"/><path d="M4 18l1 1 2-2"/></svg>
+        Jobs
+      </button>
+      <button class="nav-tab" data-tab="schedules-tab">
+        <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+        Schedules
+      </button>
+      <button class="nav-tab" data-tab="executions-tab">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M3 12h4l2-7 4 14 2-7h6"/></svg>
+        Executions
+      </button>
+      <button class="nav-tab" data-tab="targets-tab">
+        <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="6" rx="1"/><rect x="3" y="14" width="18" height="6" rx="1"/><path d="M7 7h.01"/><path d="M7 17h.01"/></svg>
+        Target Nodes
+      </button>
+      <button class="nav-tab" data-tab="credentials-tab">
+        <svg class="icon" viewBox="0 0 24 24"><circle cx="8" cy="12" r="4"/><path d="M11 12h10"/><path d="M17 12v4"/><path d="M21 12v3"/></svg>
+        Key Storage
+      </button>
     </nav>
+
     <div class="header-status">
       <span class="status-dot online"></span>
-      <span id="user-badge" class="badge badge-mono" style="background: rgba(59, 130, 246, 0.2); color: #60a5fa;">👤 admin</span>
-      <button class="btn-xs btn-secondary" onclick="handleLogout()" style="margin-left: 0.5rem; color: #ef4444; border-color: rgba(239, 68, 68, 0.3);">Sign Out</button>
+      <span id="user-badge" class="badge badge-role">
+        <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20a8 8 0 0 1 16 0"/></svg>
+        <span id="user-badge-name">admin</span>
+      </span>
+      <button class="btn-xs btn-secondary btn-danger-ghost" onclick="handleLogout()" style="margin-left: 0.5rem;">Sign Out</button>
     </div>
   </header>
 
+  <!-- Telemetry Strip: pinned across every tab -->
+  <div class="telemetry-strip">
+    <div class="telemetry-block">
+      <span class="telemetry-label">Fleet</span>
+      <div id="telemetry-fleet-tiles" class="fleet-tiles"></div>
+      <span id="telemetry-fleet-value" class="telemetry-value">—</span>
+    </div>
+    <div class="telemetry-divider"></div>
+    <div class="telemetry-block">
+      <span class="telemetry-label">Jobs</span>
+      <span id="telemetry-jobs-value" class="telemetry-value">—</span>
+    </div>
+    <div class="telemetry-divider"></div>
+    <div class="telemetry-block">
+      <span class="telemetry-label">In Flight</span>
+      <span id="telemetry-inflight-value" class="telemetry-value">—</span>
+    </div>
+    <div class="telemetry-divider"></div>
+    <div id="telemetry-flight-row" class="telemetry-flight">
+      <span class="telemetry-empty">No executions in flight</span>
+    </div>
+  </div>
+
   <!-- Main Container -->
   <main class="main-container">
-    
-    <!-- Jobs Tab -->
-    <section id="jobs-tab" class="tab-content active">
+
+    <!-- Projects Tab (Rundeck Home) -->
+    <section id="projects-tab" class="tab-content active">
       <div class="section-header">
         <div>
-          <h2>Automation Jobs</h2>
+          <h2>Projects Overview</h2>
+          <p class="section-desc">Isolated workspaces & automation namespaces</p>
+        </div>
+        <div style="display: flex; gap: 0.5rem;">
+          <button class="btn btn-primary" onclick="createProjectPrompt()"><svg class="icon" viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></svg> New Project</button>
+          <button class="btn btn-secondary" onclick="loadProjects()"><svg class="icon" viewBox="0 0 24 24"><path d="M4 4v5h5"/><path d="M20 20v-5h-5"/><path d="M4.5 9a8 8 0 0 1 14-4.5L20 9"/><path d="M19.5 15a8 8 0 0 1-14 4.5L4 15"/></svg> Refresh</button>
+        </div>
+      </div>
+
+      <div class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Project Name / Namespace</th>
+              <th>Description</th>
+              <th>Created At</th>
+              <th class="text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="projects-table-body">
+            <tr><td colspan="4" class="text-center loading-text">Loading projects...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Jobs List Tab -->
+    <section id="jobs-tab" class="tab-content">
+      <div class="section-header">
+        <div>
+          <h2 id="jobs-section-title">Automation Jobs</h2>
           <p class="section-desc">Executable task definitions & target node filters</p>
         </div>
-        <button class="btn btn-secondary" onclick="loadJobs()">🔄 Refresh</button>
+        <div style="display: flex; gap: 0.5rem;">
+          <button class="btn btn-primary" onclick="openJobEditor()"><svg class="icon" viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></svg> New Job</button>
+          <button class="btn btn-secondary" onclick="loadJobs()"><svg class="icon" viewBox="0 0 24 24"><path d="M4 4v5h5"/><path d="M20 20v-5h-5"/><path d="M4.5 9a8 8 0 0 1 14-4.5L20 9"/><path d="M19.5 15a8 8 0 0 1-14 4.5L4 15"/></svg> Refresh</button>
+        </div>
       </div>
 
       <div class="table-container">
@@ -61,6 +173,80 @@
       </div>
     </section>
 
+    <!-- Job Details / Show Screen (Rundeck Job View) -->
+    <section id="job-details-tab" class="tab-content">
+      <div class="job-details-header">
+        <div class="job-details-title-row">
+          <button class="btn btn-secondary btn-xs" onclick="backToJobsList()" style="margin-right: 0.5rem;"><svg class="icon" viewBox="0 0 24 24"><path d="M19 12H5"/><path d="M11 6l-6 6 6 6"/></svg> Back to Jobs</button>
+          <h2 id="job-detail-name">Job Details</h2>
+          <span id="job-detail-id" class="badge badge-mono" style="margin-left: 0.5rem;">id: -</span>
+          <div class="job-details-actions" style="margin-left: auto; display: flex; gap: 0.5rem;">
+            <button class="btn btn-secondary btn-xs" onclick="openJobEditor(currentSelectedJobID)"><svg class="icon" viewBox="0 0 24 24"><path d="M4 20l4-1 11-11-3-3-11 11z"/><path d="M14 6l3 3"/></svg> Edit</button>
+            <button class="btn btn-secondary btn-xs btn-danger-ghost" onclick="deleteJob(currentSelectedJobID)"><svg class="icon" viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M6 7v13a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V7"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M10 11v6"/><path d="M14 11v6"/></svg> Delete</button>
+          </div>
+        </div>
+
+        <div class="job-details-control-row">
+          <div class="follow-execution-box">
+            <span class="control-label">Follow execution:</span>
+            <select id="job-follow-mode-select" class="dropdown-select">
+              <option value="Nodes" selected>Nodes</option>
+              <option value="Log Output">Log Output</option>
+              <option value="HTML">HTML</option>
+            </select>
+          </div>
+          <button id="job-detail-run-btn" class="btn btn-primary" style="margin-left: auto;" onclick="runCurrentJobDetail()">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M6 4l14 8-14 8z"/></svg> Run Job Now ▾
+          </button>
+        </div>
+      </div>
+
+      <!-- Stats & Activity Sub-Tabs -->
+      <div class="subnav-tabs">
+        <button class="subnav-tab active" data-subtab="stats-subpanel" onclick="switchJobSubtab('stats-subpanel')">Stats</button>
+        <button class="subnav-tab" data-subtab="activity-subpanel" onclick="switchJobSubtab('activity-subpanel')">Activity</button>
+      </div>
+
+      <!-- Stats Sub-Panel -->
+      <div id="stats-subpanel" class="subpanel-content active">
+        <div class="stats-cards-grid">
+          <div class="stat-card">
+            <span id="stat-total-executions" class="stat-value">0</span>
+            <span class="stat-label">EXECUTIONS</span>
+          </div>
+          <div class="stat-card">
+            <span id="stat-success-rate" class="stat-value stat-green">100%</span>
+            <span class="stat-label">SUCCESS RATE</span>
+          </div>
+          <div class="stat-card">
+            <span id="stat-avg-duration" class="stat-value">0s</span>
+            <span class="stat-label">AVG DURATION</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Activity Sub-Panel -->
+      <div id="activity-subpanel" class="subpanel-content">
+        <div class="table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Status</th>
+                <th>Started At</th>
+                <th>Duration</th>
+                <th>User</th>
+                <th>Job Name</th>
+                <th class="text-right">Execution #</th>
+              </tr>
+            </thead>
+            <tbody id="job-activity-table-body">
+              <tr><td colspan="6" class="text-center loading-text">Loading activity...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
     <!-- Schedules Tab -->
     <section id="schedules-tab" class="tab-content">
       <div class="section-header">
@@ -69,8 +255,8 @@
           <p class="section-desc">Automated, recurring execution rules with timezone support</p>
         </div>
         <div style="display: flex; gap: 0.5rem;">
-          <button class="btn btn-primary" onclick="createSchedulePrompt()">➕ Add Schedule</button>
-          <button class="btn btn-secondary" onclick="loadSchedules()">🔄 Refresh</button>
+          <button class="btn btn-primary" onclick="openScheduleEditor()"><svg class="icon" viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></svg> Add Schedule</button>
+          <button class="btn btn-secondary" onclick="loadSchedules()"><svg class="icon" viewBox="0 0 24 24"><path d="M4 4v5h5"/><path d="M20 20v-5h-5"/><path d="M4.5 9a8 8 0 0 1 14-4.5L20 9"/><path d="M19.5 15a8 8 0 0 1-14 4.5L4 15"/></svg> Refresh</button>
         </div>
       </div>
 
@@ -100,7 +286,7 @@
           <h2>Execution History</h2>
           <p class="section-desc">Real-time and past automation runs</p>
         </div>
-        <button class="btn btn-secondary" onclick="loadExecutions()">🔄 Refresh</button>
+        <button class="btn btn-secondary" onclick="loadExecutions()"><svg class="icon" viewBox="0 0 24 24"><path d="M4 4v5h5"/><path d="M20 20v-5h-5"/><path d="M4.5 9a8 8 0 0 1 14-4.5L20 9"/><path d="M19.5 15a8 8 0 0 1-14 4.5L4 15"/></svg> Refresh</button>
       </div>
 
       <div class="table-container">
@@ -130,8 +316,8 @@
           <p class="section-desc">Managed remote SSH infrastructure nodes</p>
         </div>
         <div style="display: flex; gap: 0.5rem;">
-          <button class="btn btn-primary" onclick="createTargetPrompt()">➕ Add Target Node</button>
-          <button class="btn btn-secondary" onclick="loadTargets()">🔄 Refresh</button>
+          <button class="btn btn-primary" onclick="openTargetEditor()"><svg class="icon" viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></svg> Add Target Node</button>
+          <button class="btn btn-secondary" onclick="loadTargets()"><svg class="icon" viewBox="0 0 24 24"><path d="M4 4v5h5"/><path d="M20 20v-5h-5"/><path d="M4.5 9a8 8 0 0 1 14-4.5L20 9"/><path d="M19.5 15a8 8 0 0 1-14 4.5L4 15"/></svg> Refresh</button>
         </div>
       </div>
 
@@ -163,8 +349,8 @@
           <p class="section-desc">AES-256-GCM encrypted SSH keys, passwords, and API tokens</p>
         </div>
         <div style="display: flex; gap: 0.5rem;">
-          <button class="btn btn-primary" onclick="createCredentialPrompt()">➕ Add Key / Secret</button>
-          <button class="btn btn-secondary" onclick="loadCredentials()">🔄 Refresh</button>
+          <button class="btn btn-primary" onclick="openCredentialEditor()"><svg class="icon" viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></svg> Add Key / Secret</button>
+          <button class="btn btn-secondary" onclick="loadCredentials()"><svg class="icon" viewBox="0 0 24 24"><path d="M4 4v5h5"/><path d="M20 20v-5h-5"/><path d="M4.5 9a8 8 0 0 1 14-4.5L20 9"/><path d="M19.5 15a8 8 0 0 1-14 4.5L4 15"/></svg> Refresh</button>
         </div>
       </div>
 
@@ -195,6 +381,17 @@
           <h3>Terminal Execution Console</h3>
           <span id="modal-execution-id" class="badge badge-mono">ID: -</span>
         </div>
+
+        <!-- Execution Follow Mode Selector -->
+        <div class="follow-execution-box" style="margin-left: auto; margin-right: 1rem;">
+          <span class="control-label" style="font-size: 0.8rem;">Follow execution:</span>
+          <select id="modal-follow-mode-select" onchange="onChangeModalFollowMode(this.value)" class="dropdown-select">
+            <option value="Nodes" selected>Nodes</option>
+            <option value="Log Output">Log Output</option>
+            <option value="HTML">HTML</option>
+          </select>
+        </div>
+
         <button class="modal-close-btn" onclick="closeLogModal()">&times;</button>
       </div>
       <div class="modal-body">
@@ -204,10 +401,164 @@
           <span class="terminal-dot green"></span>
           <span id="terminal-status" class="terminal-status-text">Status: Log Output</span>
           <div class="terminal-actions">
-            <button class="btn-xs btn-secondary" onclick="refreshCurrentLogs()">🔄 Refresh Logs</button>
+            <button class="btn-xs btn-secondary" onclick="refreshCurrentLogs()"><svg class="icon" viewBox="0 0 24 24"><path d="M4 4v5h5"/><path d="M20 20v-5h-5"/><path d="M4.5 9a8 8 0 0 1 14-4.5L20 9"/><path d="M19.5 15a8 8 0 0 1-14 4.5L4 15"/></svg> Refresh Logs</button>
           </div>
         </div>
-        <pre id="terminal-log-output" class="terminal-console">Select an execution run to view logs...</pre>
+
+        <!-- Dynamic Output Container for Nodes / Log Output / HTML View Modes -->
+        <div id="terminal-view-container" style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+          <pre id="terminal-log-output" class="terminal-console">Select an execution run to view logs...</pre>
+          <iframe id="terminal-html-frame" class="terminal-html-sandbox hidden"></iframe>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Job Editor Modal (Create / Edit) -->
+  <div id="job-editor-modal" class="modal-overlay hidden">
+    <div class="modal-content" style="max-width: 700px;">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <h3 id="job-editor-title">New Job</h3>
+        </div>
+        <button class="modal-close-btn" onclick="closeJobEditor()">&times;</button>
+      </div>
+      <div class="modal-body" style="overflow-y: auto; gap: 1rem;">
+        <div class="form-group">
+          <label for="job-editor-name">Job Name</label>
+          <input id="job-editor-name" type="text" placeholder="e.g. Deploy App">
+        </div>
+        <div class="form-group">
+          <label for="job-editor-target-filter">Target Filter Tags (comma-separated)</label>
+          <input id="job-editor-target-filter" type="text" placeholder="e.g. web-server, production">
+        </div>
+        <div class="form-group">
+          <label for="job-editor-steps">Pipeline Steps (JSON array)</label>
+          <textarea id="job-editor-steps" class="code-textarea" rows="8" placeholder='[{"type":"command","attributes":{"value":"uptime"}}]'></textarea>
+          <p class="section-desc" style="margin-top: 0.4rem;">Step <code>type</code> must be one of: command, script, file-copy, job-ref.</p>
+        </div>
+        <div class="form-group">
+          <label for="job-editor-options">Job Options (JSON array, optional)</label>
+          <textarea id="job-editor-options" class="code-textarea" rows="4" placeholder='[{"name":"VERSION","required":true,"default_value":"latest"}]'></textarea>
+        </div>
+      </div>
+      <div class="modal-header" style="border-top: 1px solid var(--border-color); border-bottom: none; justify-content: flex-end; gap: 0.5rem;">
+        <button class="btn btn-secondary btn-xs" onclick="closeJobEditor()">Cancel</button>
+        <button class="btn btn-primary btn-xs" onclick="submitJobEditor()"><svg class="icon" viewBox="0 0 24 24"><path d="M5 4h11l3 3v13H5z"/><path d="M8 4v6h8V4"/><path d="M8 14h8v6H8z"/></svg> Save Job</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Target Editor Modal (Create / Edit) -->
+  <div id="target-editor-modal" class="modal-overlay hidden">
+    <div class="modal-content" style="max-width: 560px;">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <h3 id="target-editor-title">New Target Node</h3>
+        </div>
+        <button class="modal-close-btn" onclick="closeTargetEditor()">&times;</button>
+      </div>
+      <div class="modal-body" style="overflow-y: auto; gap: 1rem;">
+        <div class="form-group">
+          <label for="target-editor-host">Host / IP</label>
+          <input id="target-editor-host" type="text" placeholder="e.g. 192.168.1.50 or web-01.local">
+        </div>
+        <div class="form-group-row">
+          <div class="form-group" style="flex: 2;">
+            <label for="target-editor-user">SSH User</label>
+            <input id="target-editor-user" type="text" placeholder="e.g. ubuntu">
+          </div>
+          <div class="form-group" style="flex: 1;">
+            <label for="target-editor-port">Port</label>
+            <input id="target-editor-port" type="text" placeholder="22">
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="target-editor-tags">Tags (comma-separated)</label>
+          <input id="target-editor-tags" type="text" placeholder="e.g. web-server, production">
+        </div>
+        <div class="form-group">
+          <label for="target-editor-credential">Credential ID</label>
+          <input id="target-editor-credential" type="text" placeholder="Leave blank to use a local SSH key path instead">
+        </div>
+      </div>
+      <div class="modal-header" style="border-top: 1px solid var(--border-color); border-bottom: none; justify-content: flex-end; gap: 0.5rem;">
+        <button class="btn btn-secondary btn-xs" onclick="closeTargetEditor()">Cancel</button>
+        <button class="btn btn-primary btn-xs" onclick="submitTargetEditor()"><svg class="icon" viewBox="0 0 24 24"><path d="M5 4h11l3 3v13H5z"/><path d="M8 4v6h8V4"/><path d="M8 14h8v6H8z"/></svg> Save Target</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Schedule Editor Modal (Create / Edit) -->
+  <div id="schedule-editor-modal" class="modal-overlay hidden">
+    <div class="modal-content" style="max-width: 560px;">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <h3 id="schedule-editor-title">New Schedule</h3>
+        </div>
+        <button class="modal-close-btn" onclick="closeScheduleEditor()">&times;</button>
+      </div>
+      <div class="modal-body" style="overflow-y: auto; gap: 1rem;">
+        <div class="form-group">
+          <label for="schedule-editor-job-id">Job ID</label>
+          <input id="schedule-editor-job-id" type="text" placeholder="e.g. deploy-app">
+        </div>
+        <div class="form-group">
+          <label for="schedule-editor-cron">Cron Expression</label>
+          <input id="schedule-editor-cron" class="code-textarea" type="text" placeholder="0 0 2 * * * (2 AM daily)">
+        </div>
+        <div class="form-group-row">
+          <div class="form-group" style="flex: 1;">
+            <label for="schedule-editor-timezone">Timezone</label>
+            <input id="schedule-editor-timezone" type="text" placeholder="UTC">
+          </div>
+          <div class="form-group form-group-checkbox" style="flex: 1;">
+            <label for="schedule-editor-enabled">Status</label>
+            <label class="checkbox-row">
+              <input id="schedule-editor-enabled" type="checkbox" checked>
+              <span>Enabled</span>
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="modal-header" style="border-top: 1px solid var(--border-color); border-bottom: none; justify-content: flex-end; gap: 0.5rem;">
+        <button class="btn btn-secondary btn-xs" onclick="closeScheduleEditor()">Cancel</button>
+        <button class="btn btn-primary btn-xs" onclick="submitScheduleEditor()"><svg class="icon" viewBox="0 0 24 24"><path d="M5 4h11l3 3v13H5z"/><path d="M8 4v6h8V4"/><path d="M8 14h8v6H8z"/></svg> Save Schedule</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Credential Editor Modal (Create / Edit) -->
+  <div id="credential-editor-modal" class="modal-overlay hidden">
+    <div class="modal-content" style="max-width: 560px;">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <h3 id="credential-editor-title">New Key / Secret</h3>
+        </div>
+        <button class="modal-close-btn" onclick="closeCredentialEditor()">&times;</button>
+      </div>
+      <div class="modal-body" style="overflow-y: auto; gap: 1rem;">
+        <div class="form-group">
+          <label for="credential-editor-name">Name</label>
+          <input id="credential-editor-name" type="text" placeholder="e.g. Prod Server SSH Key">
+        </div>
+        <div class="form-group">
+          <label for="credential-editor-type">Type</label>
+          <select id="credential-editor-type">
+            <option value="ssh_key">SSH Key</option>
+            <option value="password">Password</option>
+            <option value="token">Token</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="credential-editor-payload">Secret Content</label>
+          <textarea id="credential-editor-payload" class="code-textarea" rows="5" placeholder="Private key PEM, SSH password, or API token"></textarea>
+          <p id="credential-editor-payload-hint" class="section-desc hidden" style="margin-top: 0.4rem;">Leave blank to keep the existing stored secret — only the name/type will change.</p>
+        </div>
+      </div>
+      <div class="modal-header" style="border-top: 1px solid var(--border-color); border-bottom: none; justify-content: flex-end; gap: 0.5rem;">
+        <button class="btn btn-secondary btn-xs" onclick="closeCredentialEditor()">Cancel</button>
+        <button class="btn btn-primary btn-xs" onclick="submitCredentialEditor()"><svg class="icon" viewBox="0 0 24 24"><path d="M5 4h11l3 3v13H5z"/><path d="M8 4v6h8V4"/><path d="M8 14h8v6H8z"/></svg> Save Secret</button>
       </div>
     </div>
   </div>

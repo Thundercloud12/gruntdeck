@@ -92,14 +92,13 @@
           <span class="terminal-title-text">gruntdeck-engine — bash</span>
         </div>
         <div class="terminal-console-body">
-          <span style="color: #e7ebf1;">$ docker compose up -d</span><br>
-          <span style="color: #34d399;">[+] Running 3/3</span><br>
-          <span style="color: #34d399;"> ✔ Container gruntdeck-db        Healthy</span><br>
-          <span style="color: #34d399;"> ✔ Container gruntdeck-server    Running (http://localhost:8080)</span><br>
-          <span style="color: #34d399;"> ✔ Container gruntdeck-executor  Active (River Worker Daemon)</span><br><br>
+          <span style="color: #e7ebf1;">$ docker pull ghcr.io/thundercloud12/gruntdeck:v1.0.0</span><br>
+          <span style="color: #34d399;">v1.0.0: Pulling from thundercloud12/gruntdeck</span><br>
+          <span style="color: #34d399;">Digest: sha256:a1b2c3d4e5f...</span><br>
+          <span style="color: #34d399;">Status: Downloaded newer image for ghcr.io/thundercloud12/gruntdeck:v1.0.0</span><br><br>
           <span style="color: #f5a623;">2026/08/23 10:30:00 🌐 Gruntdeck Web Dashboard active on http://localhost:8080</span><br>
-          <span>[LOG] [web-01.prod] Step 1/2: Pulling Docker Container Image... OK</span><br>
-          <span>[LOG] [web-02.prod] Step 2/2: Restarting System Service Nginx... OK</span>
+          <span>[LOG] [web-01.prod] Step 1/2: Running Automation Pipeline... OK</span><br>
+          <span>[LOG] [web-02.prod] Step 2/2: Service Health Checked... OK</span>
         </div>
       </div>
     </section>
@@ -165,30 +164,35 @@
     <!-- Quickstart Box -->
     <section id="quickstart" class="quickstart-box">
       <div class="quickstart-header-tabs">
-        <button class="qs-tab-btn active" onclick="switchTab(this, 'qs-docker')">Docker Compose</button>
+        <button class="qs-tab-btn active" onclick="switchTab(this, 'qs-ghcr')">Docker Image (ghcr.io)</button>
+        <button class="qs-tab-btn" onclick="switchTab(this, 'qs-docker')">Docker Compose</button>
         <button class="qs-tab-btn" onclick="switchTab(this, 'qs-binary')">Standalone Binary</button>
-        <button class="qs-tab-btn" onclick="switchTab(this, 'qs-cli')">CLI Trust</button>
+        <button class="qs-tab-btn" onclick="switchTab(this, 'qs-cli')">CLI Fingerprint</button>
       </div>
 
-      <div id="qs-docker" class="qs-tab-panel active">
-        <pre><code># 1. Clone repository
+      <div id="qs-ghcr" class="qs-tab-panel active">
+        <pre><code># Pull official release container from GitHub Registry
+docker run -d -p 8080:8080 \
+  -e DATABASE_URL="postgres://gruntdeck:password@localhost:5432/gruntdeck?sslmode=disable" \
+  -e GRUNTDECK_MASTER_KEY="01234567890123456789012345678901" \
+  ghcr.io/thundercloud12/gruntdeck:v1.0.0</code></pre>
+      </div>
+
+      <div id="qs-docker" class="qs-tab-panel">
+        <pre><code># Clone repo & launch production stack
 git clone https://github.com/Thundercloud12/gruntdeck.git
 cd gruntdeck
-
-# 2. Launch production stack
 docker compose up -d
 
-# 3. Access web dashboard at http://localhost:8080 (admin / adminpassword)</code></pre>
+# Open web dashboard at http://localhost:8080 (admin / adminpassword)</code></pre>
       </div>
 
       <div id="qs-binary" class="qs-tab-panel">
-        <pre><code># 1. Set environment variables
-export DATABASE_URL="postgres://postgres:postgres@localhost:5432/gruntdeck?sslmode=disable"
-export GRUNTDECK_MASTER_KEY="01234567890123456789012345678901"
+        <pre><code># Download pre-compiled binary release
+curl -L -O https://github.com/Thundercloud12/gruntdeck/releases/download/v1.0.0/gruntdeck-server-v1.0.0-linux-amd64
+chmod +x gruntdeck-server-v1.0.0-linux-amd64
 
-# 2. Launch server & worker daemon
-./server &
-./executor &</code></pre>
+./gruntdeck-server-v1.0.0-linux-amd64</code></pre>
       </div>
 
       <div id="qs-cli" class="qs-tab-panel">

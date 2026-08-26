@@ -27,6 +27,8 @@ services:
     ports:
       - "8080:8080"
     environment:
+      # CHANGE THESE before exposing this instance beyond localhost.
+      # They are checked-in placeholders — anyone with this repo knows them.
       DATABASE_URL: "postgres://gruntdeck:gruntdeck_secret_password@postgres:5432/gruntdeck?sslmode=disable"
       GRUNTDECK_MASTER_KEY: "change_this_master_key_to_32_chars_in_prod!"
       ADMIN_USERNAME: "admin"

@@ -21,6 +21,9 @@ func NewService() *Service {
 	if masterKey == "" {
 		log.Fatal("GRUNTDECK_MASTER_KEY environment variable is required (used to encrypt stored credentials)")
 	}
+	if masterKey == "change_this_master_key_to_32_chars_in_prod!" || masterKey == "01234567890123456789012345678901" {
+		log.Println("WARNING: GRUNTDECK_MASTER_KEY is set to a well-known default value. Change it before exposing this instance beyond localhost.")
+	}
 	hash := sha256.Sum256([]byte(masterKey))
 	return &Service{
 		key: hash[:],

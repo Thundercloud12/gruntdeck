@@ -194,6 +194,9 @@ func (s *Server) bootstrapAdminUser(ctx context.Context) {
 	if adminPassword == "" {
 		log.Fatal("ADMIN_PASSWORD environment variable is required to bootstrap the initial admin user")
 	}
+	if adminPassword == "adminpassword" || adminPassword == "changeme-local-dev" {
+		log.Println("WARNING: ADMIN_PASSWORD is set to a well-known default value. Change it before exposing this instance beyond localhost.")
+	}
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(adminPassword), bcrypt.DefaultCost)
 	if err != nil {

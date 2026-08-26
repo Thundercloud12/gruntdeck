@@ -11,6 +11,9 @@
 # Known Hosts
 .gruntdeck/
 
+# Design review scratch (screenshots live in docs/screenshots instead)
+.impeccable/
+
 # Markdown files
 *.md
 !README.md

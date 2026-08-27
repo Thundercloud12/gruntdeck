@@ -1,7 +1,6 @@
 # Gruntdeck ⚡
 
 [![CI](https://github.com/Thundercloud12/gruntdeck/actions/workflows/ci.yml/badge.svg)](https://github.com/Thundercloud12/gruntdeck/actions/workflows/ci.yml)
-[![Release](https://github.com/Thundercloud12/gruntdeck/actions/workflows/release.yml/badge.svg)](https://github.com/Thundercloud12/gruntdeck/actions/workflows/release.yml)
 [![Go Version](https://img.shields.io/badge/Go-1.25-00ADD8?logo=go)](go.mod)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -147,6 +146,7 @@ internal/
   ssh/         → remote command execution over SSH
   variables/   → runtime job/step variable interpolation
 web/           → static HTML/CSS/JS dashboard, embedded into the server binary
+scripts/       → the only directory job steps may read source_path files from
 docs/          → project website & README assets
 ```
 
@@ -188,6 +188,7 @@ go run ./cmd/producer deploy-app --APP_VERSION=v2.0.1 --ENVIRONMENT=production
 | `ADMIN_PASSWORD` | Yes | — | Password for the bootstrapped initial admin user. Only used the very first time the server starts against an empty database. |
 | `ADMIN_USERNAME` | No | `admin` | Username for the bootstrapped initial admin user. |
 | `PORT` | No | `8080` | HTTP port `cmd/server` listens on. |
+| `GRUNTDECK_SCRIPT_DIR` | No | `./scripts` | Directory that job step `source_path` values are confined to. Job definitions come from API users, so anything readable under this root can be shipped to a remote node — keep it separate from config files and keys. |
 
 ---
 
@@ -203,15 +204,17 @@ go run ./cmd/producer deploy-app --APP_VERSION=v2.0.1 --ENVIRONMENT=production
 | Frontend | Vanilla HTML / CSS / JS, served via Go `embed.FS` — no build step |
 | Auth | bcrypt password hashing, HttpOnly/SameSite session cookies |
 | Secrets | AES-256-GCM |
-| Deployment | Docker Compose, GitHub Actions, GHCR |
+| Deployment | Docker Compose, GitHub Actions |
 
 ---
 
-## 🚢 CI/CD & Automated Releases
+## 🚢 CI/CD
 
 Gruntdeck includes GitHub Actions workflows (`.github/workflows/`):
 - **`ci.yml`**: Runs `go build` and `go test` against a real Postgres service container on every push/PR.
-- **`release.yml`**: Cross-compiles release binaries (Linux `amd64`/`arm64`, macOS `arm64`) and publishes them as GitHub Releases, plus a multi-arch Docker image to `ghcr.io`, whenever a version tag is pushed (e.g. `git tag v1.0.0 && git push origin --tags`).
+- **`deploy-docs.yml`**: Publishes the `docs/` site to GitHub Pages.
+
+There is currently no automated release pipeline — build from source with `go build ./cmd/server`, or run the stack with Docker Compose as shown above. Prebuilt binaries and a published container image are planned but not yet part of the release process.
 
 ---
 

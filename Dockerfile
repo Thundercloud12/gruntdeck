@@ -24,6 +24,10 @@ WORKDIR /app
 
 RUN apk add --no-cache ca-certificates tzdata openssh-client
 
+# Job steps may only read source_path files from here (override: GRUNTDECK_SCRIPT_DIR).
+# Mount your scripts into this directory.
+RUN mkdir -p /app/scripts
+
 # Copy binaries and web assets
 COPY --from=builder /app/bin/server /app/server
 COPY --from=builder /app/bin/executor /app/executor

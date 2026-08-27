@@ -14,7 +14,11 @@ func (s *Service) handleScriptStep(ctx context.Context, execCtx models.Execution
 		return fmt.Errorf("missing script source_path")
 	}
 
-	sourcePath := variables.Resolve(cfg.SourcePath, execCtx)
+	sourcePath, err := resolveSourcePath(variables.Resolve(cfg.SourcePath, execCtx))
+	if err != nil {
+		s.recordLog(ctx, execCtx.Execution.ID, execCtx.Target.Host, step.ID, "error", err.Error(), err)
+		return err
+	}
 	resolvedArgs := make([]string, len(cfg.Args))
 	for i, arg := range cfg.Args {
 		resolvedArgs[i] = variables.Resolve(arg, execCtx)

@@ -14,7 +14,11 @@ func (s *Service) handleFileCopyStep(ctx context.Context, execCtx models.Executi
 		return fmt.Errorf("missing file-copy source_path or dest_path")
 	}
 
-	sourcePath := variables.Resolve(cfg.SourcePath, execCtx)
+	sourcePath, err := resolveSourcePath(variables.Resolve(cfg.SourcePath, execCtx))
+	if err != nil {
+		s.recordLog(ctx, execCtx.Execution.ID, execCtx.Target.Host, step.ID, "error", err.Error(), err)
+		return err
+	}
 	destPath := variables.Resolve(cfg.DestPath, execCtx)
 
 	msg := fmt.Sprintf("[%s@%s] 📁 Copying local %s to remote %s...", execCtx.Target.User, execCtx.Target.Host, sourcePath, destPath)
